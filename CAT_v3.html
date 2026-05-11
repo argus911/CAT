@@ -73,7 +73,7 @@ body{font-family:'Noto Serif TC','Hiragino Sans GB',serif;background:var(--bg);c
 .calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;position:relative;}
 
 /* DAY CELLS */
-.day-cell{border-radius:8px;display:flex;flex-direction:column;align-items:center;cursor:pointer;position:relative;padding:3px 1px 2px;transition:background 0.12s;background:var(--surface);min-height:58px;overflow:hidden;}
+.day-cell{border-radius:8px;display:flex;flex-direction:column;align-items:center;cursor:pointer;position:relative;padding:3px 1px 2px;transition:background 0.12s;background:var(--surface);min-height:68px;overflow:hidden;}
 .day-cell:active{transform:scale(0.94);}
 .day-cell.empty{background:transparent;cursor:default;}
 .day-cell.today{background:var(--accent);color:white;box-shadow:0 3px 10px rgba(45,74,122,0.35);}
@@ -102,7 +102,7 @@ body{font-family:'Noto Serif TC','Hiragino Sans GB',serif;background:var(--bg);c
 
 /* POINT EVENTS (single day) */
 .day-tags{width:100%;display:flex;flex-direction:column;gap:1px;margin-top:2px;padding:0 2px;}
-.day-tag{font-size:8px;line-height:1.2;border-radius:3px;padding:1px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:'Noto Serif TC',serif;max-width:100%;}
+.day-tag{font-size:9px;line-height:1.2;border-radius:3px;padding:1px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:'Noto Serif TC',serif;max-width:100%;}
 .day-tag.t-holiday{background:#fde8e6;color:#c0392b;}
 .day-tag.t-birthday{background:#f3e8ff;color:#6c3483;}
 .day-tag.t-custom{background:#e8f0ff;color:#2d4a7a;}
@@ -946,32 +946,65 @@ function createDayCell(y,m,d,otherMonth,isToday,spanMap) {
   const ds=dateToStr(y,m,d);
   const spans=(spanMap&&spanMap[ds])||[];
 
-  if(!otherMonth && spans.length>0) {
-    const spanWrap=document.createElement('div');
-    spanWrap.className='day-spans';
-    spans.slice(0,3).forEach(sp=>{
-      const bar=document.createElement('div');
-      bar.className=`span-bar ${sp.cls} span-${sp.pos}`;
-      bar.title=sp.label;
-      spanWrap.appendChild(bar);
+  if(!otherMonth) {
+    // ── Step 1: Collect ALL label items for this date ──
+    const labelItems = [];
+    // From point events (single-day or same-day start/end)
+    evs.forEach(e => {
+      const isSingleDay = !e.endDate || e.endDate === e.startDate;
+      const cls = e.type==='holiday'?'t-holiday':e.type==='birthday'?'t-birthday':'t-custom';
+      if (isSingleDay) labelItems.push({label: e.name, cls});
     });
-    if(spans.length>3) {
-      const more=document.createElement('div');
-      more.className='day-more'; more.textContent=`+${spans.length-3}`;
-      spanWrap.appendChild(more);
-    }
-    cell.appendChild(spanWrap);
-  } else if(!otherMonth) {
-    // Single-day point events as text tags
-    const pointEvs=evs.filter(e=>!e.endDate||e.endDate===e.startDate);
-    if(pointEvs.length>0) {
-      const tagWrap=document.createElement('div'); tagWrap.className='day-tags';
-      pointEvs.slice(0,2).forEach(e=>{
-        const tag=document.createElement('div');
-        tag.className='day-tag '+(e.type==='holiday'?'t-holiday':e.type==='birthday'?'t-birthday':'t-custom');
-        tag.textContent=e.name; tagWrap.appendChild(tag);
+    // From todos visible on this date
+    const todayTodos = getTodosForDate(y,m,d);
+    todayTodos.forEach(t => {
+      const isSingleDay = !t.startDate || !t.endDate || t.startDate === t.endDate;
+      if (isSingleDay) labelItems.push({label: t.text, cls: 't-todo'});
+    });
+    // From span bars — add label on start day
+    spans.forEach(sp => {
+      if (sp.pos === 'start' || sp.pos === 'solo') {
+        const spanCls = sp.cls==='c-holiday'?'t-holiday':sp.cls==='c-birthday'?'t-birthday':sp.cls==='c-todo'?'t-todo':'t-custom';
+        labelItems.push({label: sp.label, cls: spanCls, isSpan: true});
+      }
+    });
+
+    // ── Step 2: Render span bars (colour strips) ──
+    if (spans.length > 0) {
+      const spanWrap = document.createElement('div');
+      spanWrap.className = 'day-spans';
+      spans.slice(0, 2).forEach(sp => {
+        const bar = document.createElement('div');
+        bar.className = `span-bar ${sp.cls} span-${sp.pos}`;
+        bar.title = sp.label;
+        spanWrap.appendChild(bar);
       });
-      if(pointEvs.length>2) { const more=document.createElement('div'); more.className='day-more'; more.textContent=`+${pointEvs.length-2}`; tagWrap.appendChild(more); }
+      if (spans.length > 2) {
+        const more = document.createElement('div');
+        more.className = 'day-more';
+        more.textContent = `+${spans.length-2}`;
+        spanWrap.appendChild(more);
+      }
+      cell.appendChild(spanWrap);
+    }
+
+    // ── Step 3: Render text labels (always shown) ──
+    if (labelItems.length > 0) {
+      const tagWrap = document.createElement('div');
+      tagWrap.className = 'day-tags';
+      const maxShow = spans.length > 0 ? 1 : 2; // fewer tags if bars present
+      labelItems.slice(0, maxShow).forEach(item => {
+        const tag = document.createElement('div');
+        tag.className = 'day-tag ' + item.cls;
+        tag.textContent = item.label;
+        tagWrap.appendChild(tag);
+      });
+      if (labelItems.length > maxShow) {
+        const more = document.createElement('div');
+        more.className = 'day-more';
+        more.textContent = `+${labelItems.length - maxShow}`;
+        tagWrap.appendChild(more);
+      }
       cell.appendChild(tagWrap);
     }
   }
