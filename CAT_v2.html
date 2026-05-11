@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CAT">
+<meta name="theme-color" content="#1a1a2e" id="theme-color-meta">
+<title>CAT — 行事曆與待辦</title>
+<link rel="manifest" href="#" id="manifest-link">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;600&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════
+   THEME DEFINITIONS
+═══════════════════════════════════ */
+:root {
+  --bg:#f7f5f0;--surface:#ffffff;--surface2:#f0ede7;
+  --ink:#1c1c1e;--ink2:#5a5a6e;--ink3:#9898a8;
+  --accent:#2d4a7a;--holiday:#e74c3c;--birthday:#8e44ad;
+  --todo-done:#27ae60;--border:#e0ddd7;
+  --shadow:0 2px 12px rgba(0,0,0,0.08);--radius:16px;
+  --safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);
+}
+[data-theme="dark"]{
+  --bg:#141418;--surface:#1e1e24;--surface2:#252530;
+  --ink:#e8e6df;--ink2:#a0a0b8;--ink3:#68687a;
+  --accent:#5b8dd9;--border:#2c2c38;
+}
+[data-theme="forest"]{
+  --bg:#f0f4f0;--surface:#ffffff;--surface2:#e8f0e8;
+  --ink:#1a2e1a;--ink2:#4a6a4a;--ink3:#88a888;
+  --accent:#2d6a2d;--border:#c8dcc8;
+}
+[data-theme="warm"]{
+  --bg:#fdf6ec;--surface:#fff9f2;--surface2:#f5edd8;
+  --ink:#2d1f0e;--ink2:#7a5c3a;--ink3:#b8956a;
+  --accent:#a0522d;--border:#e8d5b8;
+}
+[data-theme="ocean"]{
+  --bg:#eef4f8;--surface:#ffffff;--surface2:#ddeef8;
+  --ink:#0d2535;--ink2:#2a5a7a;--ink3:#6898b8;
+  --accent:#0077aa;--border:#b8d8e8;
+}
+[data-theme="slate"]{
+  --bg:#1a1c20;--surface:#22252b;--surface2:#2a2e35;
+  --ink:#d8dde5;--ink2:#8898a8;--ink3:#566070;
+  --accent:#7c9cc0;--border:#333840;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+
+body{
+  font-family:'Noto Serif TC','Hiragino Sans GB',serif;
+  background:var(--bg);color:var(--ink);
+  min-height:100vh;min-height:-webkit-fill-available;
+  overflow-x:hidden;
+  padding-top:var(--safe-top);
+  padding-bottom:calc(var(--safe-bottom) + 72px);
+  transition:background 0.3s,color 0.3s;
+}
+
+/* ─── Header ─── */
+.header{
+  position:sticky;top:0;z-index:100;
+  background:rgba(247,245,240,0.92);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+  padding:12px 18px 10px;
+  transition:background 0.3s;
+}
+[data-theme="dark"] .header,[data-theme="slate"] .header{background:rgba(20,20,24,0.92);}
+[data-theme="forest"] .header{background:rgba(240,244,240,0.92);}
+[data-theme="warm"] .header{background:rgba(253,246,236,0.92);}
+[data-theme="ocean"] .header{background:rgba(238,244,248,0.92);}
+
+.header-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.app-name{font-size:11px;font-family:'DM Mono',monospace;letter-spacing:0.15em;color:var(--ink3);text-transform:uppercase;}
+.header-actions{display:flex;gap:6px;}
+.month-nav{display:flex;align-items:center;gap:10px;justify-content:center;}
+
+/* 月份標題 — 明確顯示年月 */
+.month-title-wrap{display:flex;flex-direction:column;align-items:center;min-width:140px;}
+.month-year-label{font-size:11px;font-family:'DM Mono',monospace;color:var(--ink3);letter-spacing:0.08em;}
+.month-main-label{font-size:21px;font-weight:600;letter-spacing:-0.5px;line-height:1.1;}
+
+.nav-btn{
+  width:34px;height:34px;border:1px solid var(--border);border-radius:50%;
+  background:var(--surface);cursor:pointer;font-size:16px;
+  display:flex;align-items:center;justify-content:center;
+  transition:all 0.15s;color:var(--accent);
+}
+.nav-btn:active{transform:scale(0.93);background:var(--surface2);}
+
+/* ─── Bottom Nav ─── */
+.bottom-nav{
+  position:fixed;bottom:0;left:0;right:0;
+  background:rgba(247,245,240,0.95);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-top:1px solid var(--border);
+  padding:8px 0 calc(var(--safe-bottom) + 8px);
+  display:flex;z-index:100;transition:background 0.3s;
+}
+[data-theme="dark"] .bottom-nav,[data-theme="slate"] .bottom-nav{background:rgba(20,20,24,0.95);}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:6px 0;transition:all 0.15s;color:var(--ink3);font-size:10px;font-family:'DM Mono',monospace;letter-spacing:0.05em;}
+.nav-item.active{color:var(--accent);}
+.nav-icon{font-size:22px;line-height:1;}
+
+/* ─── Views ─── */
+.view{display:none;padding:16px;}
+.view.active{display:block;}
+
+/* ─── Calendar ─── */
+.weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:6px;text-align:center;}
+.weekday-label{font-size:11px;font-family:'DM Mono',monospace;color:var(--ink3);padding:4px 0;letter-spacing:0.05em;}
+.weekday-label:first-child{color:var(--holiday);}
+.weekday-label:last-child{color:#3498db;}
+
+.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+
+/* 行事曆格 — 支援文字標籤顯示 */
+.day-cell{
+  border-radius:10px;display:flex;flex-direction:column;
+  align-items:center;cursor:pointer;position:relative;
+  padding:3px 2px 2px;transition:all 0.15s;
+  background:var(--surface);min-height:52px;
+}
+.day-cell:active{transform:scale(0.94);}
+.day-cell.empty{background:transparent;cursor:default;}
+.day-cell.today{background:var(--accent);color:white;box-shadow:0 3px 10px rgba(45,74,122,0.35);}
+.day-cell.selected{outline:2px solid var(--accent);outline-offset:1px;}
+.day-cell.holiday-bg{background:#fdf0ee;}
+[data-theme="dark"] .day-cell.holiday-bg,[data-theme="slate"] .day-cell.holiday-bg{background:#2e1a1a;}
+.day-cell.sunday .day-num{color:var(--holiday);}
+.day-cell.saturday .day-num{color:#3498db;}
+.day-cell.today .day-num{color:white;}
+.day-cell.other-month{opacity:0.38;}
+.day-cell.other-month .day-num{color:var(--ink3);}
+
+.day-num{font-size:15px;font-weight:400;line-height:1;width:100%;text-align:center;}
+
+/* 日格內文字標籤 */
+.day-tags{width:100%;display:flex;flex-direction:column;gap:1px;margin-top:2px;padding:0 1px;}
+.day-tag{
+  font-size:8.5px;line-height:1.2;border-radius:3px;
+  padding:1px 2px;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;font-family:'Noto Serif TC',serif;
+  text-align:left;max-width:100%;
+}
+.day-tag.t-holiday{background:#fde8e6;color:#c0392b;}
+.day-tag.t-birthday{background:#f3e8ff;color:#6c3483;}
+.day-tag.t-custom{background:#e8f0ff;color:#2d4a7a;}
+.day-tag.t-todo{background:#e8f8ee;color:#1a7a3a;}
+[data-theme="dark"] .day-tag.t-holiday,[data-theme="slate"] .day-tag.t-holiday{background:#3a1515;color:#e87070;}
+[data-theme="dark"] .day-tag.t-birthday,[data-theme="slate"] .day-tag.t-birthday{background:#2a1a3a;color:#c888e8;}
+[data-theme="dark"] .day-tag.t-custom,[data-theme="slate"] .day-tag.t-custom{background:#1a2440;color:#88aae8;}
+[data-theme="dark"] .day-tag.t-todo,[data-theme="slate"] .day-tag.t-todo{background:#1a2e20;color:#70c890;}
+.day-cell.today .day-tag{background:rgba(255,255,255,0.22);color:rgba(255,255,255,0.9);}
+
+/* overflow indicator */
+.day-more{font-size:8px;color:var(--ink3);font-family:'DM Mono',monospace;text-align:center;width:100%;}
+
+/* ─── Day Panel ─── */
+.day-panel{margin-top:14px;background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow);}
+.day-panel-header{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:baseline;}
+.day-panel-date{font-size:17px;font-weight:600;}
+.day-panel-weekday{font-size:12px;font-family:'DM Mono',monospace;color:var(--ink3);}
+.day-events{padding:6px 0;min-height:44px;}
+.event-item{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--surface2);transition:background 0.1s;}
+.event-item:last-child{border-bottom:none;}
+.event-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.event-label{font-size:14px;flex:1;}
+.event-type-badge{font-size:10px;font-family:'DM Mono',monospace;padding:2px 7px;border-radius:20px;background:var(--surface2);color:var(--ink3);letter-spacing:0.05em;}
+.no-events{padding:16px;color:var(--ink3);font-size:13px;text-align:center;}
+
+/* ─── Section Title ─── */
+.section-title{font-size:11px;font-family:'DM Mono',monospace;letter-spacing:0.12em;color:var(--ink3);text-transform:uppercase;margin-bottom:12px;}
+
+/* ─── Events List ─── */
+.events-list{display:flex;flex-direction:column;gap:8px;margin-bottom:24px;}
+.event-card{background:var(--surface);border-radius:12px;border:1px solid var(--border);padding:13px 15px;display:flex;justify-content:space-between;align-items:center;box-shadow:var(--shadow);}
+.event-card-left{display:flex;align-items:center;gap:12px;}
+.event-card-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.event-card-icon.holiday{background:#fdf0ee;}
+.event-card-icon.birthday{background:#f5eeff;}
+.event-card-icon.todo{background:#eaf7ff;}
+[data-theme="dark"] .event-card-icon.holiday,[data-theme="slate"] .event-card-icon.holiday{background:#2e1a1a;}
+[data-theme="dark"] .event-card-icon.birthday,[data-theme="slate"] .event-card-icon.birthday{background:#201528;}
+.event-card-title{font-size:15px;font-weight:600;}
+.event-card-date{font-size:12px;color:var(--ink3);font-family:'DM Mono',monospace;margin-top:2px;}
+.event-card-actions{display:flex;gap:6px;}
+.btn-icon{width:30px;height:30px;border:none;border-radius:8px;background:var(--surface2);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all 0.15s;}
+.btn-icon:active{transform:scale(0.9);}
+
+/* ─── Todo ─── */
+.todo-add-btn{width:100%;padding:14px;border:1.5px dashed var(--border);border-radius:12px;background:transparent;cursor:pointer;font-family:'Noto Serif TC',serif;font-size:14px;color:var(--ink3);transition:all 0.15s;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:8px;}
+.todo-add-btn:active{background:var(--surface2);}
+.todo-item{background:var(--surface);border-radius:12px;border:1px solid var(--border);padding:13px 15px;display:flex;align-items:flex-start;gap:12px;box-shadow:var(--shadow);transition:opacity 0.2s;margin-bottom:8px;}
+.todo-item.done{opacity:0.45;}
+.todo-check{width:22px;height:22px;border-radius:50%;border:2px solid var(--border);cursor:pointer;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;font-size:12px;transition:all 0.15s;background:var(--surface);}
+.todo-item.done .todo-check{background:var(--todo-done);border-color:var(--todo-done);color:white;}
+.todo-content{flex:1;}
+.todo-text{font-size:15px;line-height:1.4;}
+.todo-item.done .todo-text{text-decoration:line-through;color:var(--ink3);}
+.todo-meta{font-size:11px;font-family:'DM Mono',monospace;color:var(--ink3);margin-top:4px;display:flex;gap:8px;align-items:center;}
+.priority-badge{padding:1px 6px;border-radius:20px;font-size:10px;font-family:'DM Mono',monospace;letter-spacing:0.05em;}
+.priority-badge.high{background:#fdf0ee;color:var(--holiday);}
+.priority-badge.medium{background:#fef9e7;color:#f39c12;}
+.priority-badge.low{background:#eafaf1;color:var(--todo-done);}
+
+/* ─── Modal ─── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity 0.25s;}
+.modal-overlay.open{opacity:1;pointer-events:all;}
+.modal{width:100%;background:var(--surface);border-radius:24px 24px 0 0;padding:8px 20px calc(var(--safe-bottom) + 24px);transform:translateY(100%);transition:transform 0.3s cubic-bezier(0.32,0.72,0,1);max-height:90vh;overflow-y:auto;}
+.modal-overlay.open .modal{transform:translateY(0);}
+.modal-handle{width:38px;height:4px;background:var(--border);border-radius:2px;margin:10px auto 20px;}
+.modal-title{font-size:18px;font-weight:600;margin-bottom:20px;}
+.form-group{margin-bottom:16px;}
+.form-label{font-size:11px;font-family:'DM Mono',monospace;letter-spacing:0.1em;color:var(--ink3);text-transform:uppercase;margin-bottom:6px;display:block;}
+.form-input{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:'Noto Serif TC',serif;font-size:15px;color:var(--ink);background:var(--surface);outline:none;transition:border-color 0.15s;-webkit-appearance:none;}
+.form-input:focus{border-color:var(--accent);}
+.form-select{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:'Noto Serif TC',serif;font-size:15px;color:var(--ink);background:var(--surface);outline:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239898a8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
+
+.type-tabs{display:flex;gap:8px;margin-bottom:20px;}
+.type-tab{flex:1;padding:10px;border:1.5px solid var(--border);border-radius:10px;background:var(--surface);cursor:pointer;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.05em;color:var(--ink3);text-align:center;transition:all 0.15s;}
+.type-tab.active{border-color:var(--accent);color:var(--accent);background:rgba(45,74,122,0.07);}
+
+/* 每年重複 toggle 按鈕 */
+.repeat-toggle-wrap{display:flex;gap:0;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface2);}
+.repeat-opt{flex:1;padding:11px 8px;text-align:center;cursor:pointer;font-size:13px;font-family:'Noto Serif TC',serif;color:var(--ink3);transition:all 0.15s;border:none;background:transparent;}
+.repeat-opt.active{background:var(--accent);color:white;font-weight:600;}
+
+.modal-actions{display:flex;gap:10px;margin-top:4px;}
+.btn{flex:1;padding:14px;border-radius:12px;border:none;font-family:'Noto Serif TC',serif;font-size:15px;cursor:pointer;transition:all 0.15s;font-weight:400;}
+.btn:active{transform:scale(0.97);}
+.btn-primary{background:var(--accent);color:white;}
+.btn-secondary{background:var(--surface2);color:var(--ink);}
+
+/* ─── Theme Picker Modal ─── */
+.theme-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;}
+.theme-swatch{border-radius:14px;border:2px solid transparent;cursor:pointer;overflow:hidden;aspect-ratio:1;display:flex;flex-direction:column;justify-content:flex-end;padding:10px;transition:all 0.15s;position:relative;}
+.theme-swatch.active{border-color:var(--accent);}
+.theme-swatch:active{transform:scale(0.96);}
+.theme-swatch-name{font-size:11px;font-family:'DM Mono',monospace;letter-spacing:0.05em;font-weight:400;color:inherit;}
+.theme-check{position:absolute;top:6px;right:6px;font-size:14px;}
+
+/* ─── Holiday Import Card ─── */
+.import-card{background:var(--surface);border-radius:14px;border:1px solid var(--border);padding:16px;margin-bottom:16px;box-shadow:var(--shadow);}
+.import-card-title{font-size:15px;font-weight:600;margin-bottom:4px;}
+.import-card-sub{font-size:12px;color:var(--ink3);font-family:'DM Mono',monospace;margin-bottom:12px;}
+.import-year-row{display:flex;gap:8px;align-items:center;margin-bottom:10px;}
+.import-year-sel{flex:1;padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Mono',monospace;font-size:14px;color:var(--ink);background:var(--surface);outline:none;-webkit-appearance:none;}
+.import-status{font-size:12px;color:var(--todo-done);font-family:'DM Mono',monospace;text-align:center;padding:4px 0;}
+.import-status.error{color:var(--holiday);}
+
+/* ─── Settings ─── */
+.settings-section{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;margin-bottom:20px;box-shadow:var(--shadow);}
+.settings-row{display:flex;justify-content:space-between;align-items:center;padding:15px 16px;border-bottom:1px solid var(--surface2);}
+.settings-row:last-child{border-bottom:none;}
+.settings-row-label{font-size:15px;}
+.settings-row-value{font-size:13px;color:var(--ink3);font-family:'DM Mono',monospace;}
+.settings-row-btn{padding:7px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:13px;font-family:'Noto Serif TC',serif;color:var(--ink);transition:all 0.15s;}
+.settings-row-btn:active{transform:scale(0.96);}
+
+/* ─── Legend ─── */
+.legend{display:flex;gap:14px;flex-wrap:wrap;padding:10px 0;}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:11px;font-family:'DM Mono',monospace;color:var(--ink3);letter-spacing:0.05em;}
+.legend-dot{width:8px;height:8px;border-radius:50%;}
+
+/* ─── Upcoming ─── */
+.upcoming-card{background:var(--surface);border-radius:12px;border:1px solid var(--border);padding:12px 15px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow);margin-bottom:8px;}
+.upcoming-date-box{display:flex;flex-direction:column;align-items:center;min-width:42px;background:var(--surface2);border-radius:10px;padding:6px 8px;}
+.upcoming-month{font-size:10px;font-family:'DM Mono',monospace;color:var(--ink3);text-transform:uppercase;letter-spacing:0.05em;}
+.upcoming-day{font-size:22px;font-weight:600;line-height:1.1;}
+.upcoming-info{flex:1;}
+.upcoming-title{font-size:14px;font-weight:600;}
+.upcoming-sub{font-size:12px;color:var(--ink3);font-family:'DM Mono',monospace;margin-top:2px;}
+.upcoming-badge{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+.fab{position:fixed;right:20px;bottom:calc(var(--safe-bottom) + 80px);width:52px;height:52px;border-radius:50%;background:var(--accent);border:none;color:white;font-size:24px;cursor:pointer;box-shadow:0 4px 16px rgba(45,74,122,0.4);display:flex;align-items:center;justify-content:center;z-index:90;transition:transform 0.15s;}
+.fab:active{transform:scale(0.92);}
+.fab.hidden{display:none;}
+
+.empty-state{text-align:center;padding:32px 20px;color:var(--ink3);font-size:13px;}
+.empty-icon{font-size:32px;margin-bottom:8px;}
+</style>
+</head>
+<body data-theme="light">
+
+<!-- Header -->
+<div class="header" id="main-header">
+  <div class="header-top">
+    <span class="app-name">CAT</span>
+    <div class="header-actions">
+      <button class="nav-btn" onclick="goToday()" title="今天">◎</button>
+      <button class="nav-btn" onclick="openThemeModal()" title="主題">🎨</button>
+    </div>
+  </div>
+  <div id="month-nav-bar">
+    <div class="month-nav">
+      <button class="nav-btn" onclick="prevMonth()">‹</button>
+      <div class="month-title-wrap" id="month-title-wrap">
+        <div class="month-year-label" id="month-year-label"></div>
+        <div class="month-main-label" id="month-main-label"></div>
+      </div>
+      <button class="nav-btn" onclick="nextMonth()">›</button>
+    </div>
+  </div>
+</div>
+
+<!-- Views -->
+<div class="view active" id="view-calendar">
+  <div class="weekdays">
+    <div class="weekday-label">日</div><div class="weekday-label">一</div>
+    <div class="weekday-label">二</div><div class="weekday-label">三</div>
+    <div class="weekday-label">四</div><div class="weekday-label">五</div>
+    <div class="weekday-label" style="color:#3498db">六</div>
+  </div>
+  <div class="calendar-grid" id="calendar-grid"></div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--holiday)"></div>國定假日</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--birthday)"></div>生日</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>待辦/自訂</div>
+  </div>
+  <div class="day-panel" id="day-panel">
+    <div class="day-panel-header">
+      <div class="day-panel-date" id="panel-date">選擇日期</div>
+      <div class="day-panel-weekday" id="panel-weekday"></div>
+    </div>
+    <div class="day-events" id="panel-events"><div class="no-events">點選日期查看詳情</div></div>
+  </div>
+</div>
+
+<div class="view" id="view-upcoming">
+  <p class="section-title">近60天重要事項</p>
+  <div id="upcoming-list"></div>
+</div>
+
+<div class="view" id="view-todo">
+  <button class="todo-add-btn" onclick="openTodoModal()">＋ 新增待辦事項</button>
+  <p class="section-title">待辦清單</p>
+  <div id="todo-list"></div>
+</div>
+
+<div class="view" id="view-events">
+  <div class="import-card">
+    <div class="import-card-title">🗓 匯入台灣國定假日</div>
+    <div class="import-card-sub">行政院人事行政總處 · 每年官方行事曆</div>
+    <div class="import-year-row">
+      <select class="import-year-sel" id="import-year-sel"></select>
+      <button class="btn btn-primary" style="flex:0 0 auto;padding:10px 16px;border-radius:10px;font-size:14px;" onclick="importHolidays()">匯入</button>
+    </div>
+    <div class="import-status" id="import-status"></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <p class="section-title" style="margin-bottom:0">自訂事件</p>
+    <button class="btn-icon" onclick="openEventModal()" style="width:auto;padding:0 12px;font-size:13px;font-family:'DM Mono',monospace;color:var(--accent);">+ 新增</button>
+  </div>
+  <div class="events-list" id="events-list"></div>
+</div>
+
+<div class="view" id="view-settings">
+  <p class="section-title">設定</p>
+  <div class="settings-section">
+    <div class="settings-row">
+      <div class="settings-row-label">🎨 外觀主題</div>
+      <button class="settings-row-btn" onclick="openThemeModal()">選擇主題</button>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-label">🗓 匯入假日</div>
+      <button class="settings-row-btn" onclick="switchView('events')">前往匯入</button>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-label">🗑 清除所有資料</div>
+      <button class="settings-row-btn" onclick="clearAll()" style="color:var(--holiday)">清除</button>
+    </div>
+  </div>
+  <div class="settings-section">
+    <div class="settings-row">
+      <div class="settings-row-label">CAT 版本</div>
+      <div class="settings-row-value">v2.0</div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-label">行事曆與待辦事項</div>
+      <div class="settings-row-value">argus911</div>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom Nav -->
+<div class="bottom-nav">
+  <div class="nav-item active" data-view="calendar" onclick="switchView('calendar')">
+    <div class="nav-icon">📅</div><span>行事曆</span>
+  </div>
+  <div class="nav-item" data-view="upcoming" onclick="switchView('upcoming')">
+    <div class="nav-icon">🔔</div><span>近期</span>
+  </div>
+  <div class="nav-item" data-view="todo" onclick="switchView('todo')">
+    <div class="nav-icon">✅</div><span>待辦</span>
+  </div>
+  <div class="nav-item" data-view="events" onclick="switchView('events')">
+    <div class="nav-icon">🗂</div><span>事件</span>
+  </div>
+  <div class="nav-item" data-view="settings" onclick="switchView('settings')">
+    <div class="nav-icon">⚙️</div><span>設定</span>
+  </div>
+</div>
+
+<button class="fab hidden" id="fab" onclick="handleFab()">＋</button>
+
+<!-- ── Event Modal ── -->
+<div class="modal-overlay" id="event-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">新增事件</div>
+    <div class="type-tabs">
+      <div class="type-tab active" data-type="holiday" onclick="selectEventType('holiday')">🎌 假日</div>
+      <div class="type-tab" data-type="birthday" onclick="selectEventType('birthday')">🎂 生日</div>
+      <div class="type-tab" data-type="custom" onclick="selectEventType('custom')">⭐ 自訂</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">事件名稱</label>
+      <input type="text" class="form-input" id="event-name" placeholder="輸入事件名稱...">
+    </div>
+    <div style="display:flex;gap:10px;">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">月份</label>
+        <select class="form-select" id="event-month">
+          <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option>
+          <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+          <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+          <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">日期</label>
+        <input type="number" class="form-input" id="event-day" placeholder="日" min="1" max="31">
+      </div>
+    </div>
+    <!-- 每年重複 — 點選切換 -->
+    <div class="form-group">
+      <label class="form-label">重複方式</label>
+      <div class="repeat-toggle-wrap">
+        <button class="repeat-opt active" id="repeat-yes" onclick="setRepeat(true)">🔁 每年重複</button>
+        <button class="repeat-opt" id="repeat-no" onclick="setRepeat(false)">📌 僅此年份</button>
+      </div>
+    </div>
+    <div class="form-group" id="year-group" style="display:none">
+      <label class="form-label">指定年份</label>
+      <input type="number" class="form-input" id="event-year" placeholder="例：2025">
+    </div>
+    <div class="form-group">
+      <label class="form-label">備註（選填）</label>
+      <input type="text" class="form-input" id="event-note" placeholder="備註說明...">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('event-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveEvent()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Todo Modal ── -->
+<div class="modal-overlay" id="todo-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">新增待辦事項</div>
+    <div class="form-group">
+      <label class="form-label">待辦內容</label>
+      <input type="text" class="form-input" id="todo-text-input" placeholder="輸入待辦事項...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">到期日（選填）</label>
+      <input type="date" class="form-input" id="todo-date-input">
+    </div>
+    <div class="form-group">
+      <label class="form-label">優先順序</label>
+      <select class="form-select" id="todo-priority">
+        <option value="high">🔴 高優先</option>
+        <option value="medium" selected>🟡 中優先</option>
+        <option value="low">🟢 低優先</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('todo-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveTodo()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Theme Modal ── -->
+<div class="modal-overlay" id="theme-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">選擇主題色</div>
+    <div class="theme-grid" id="theme-grid"></div>
+    <button class="btn btn-secondary" onclick="closeModal('theme-modal')">完成</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// THEME SYSTEM
+// ═══════════════════════════════════════════
+const THEMES = [
+  { id:'light',  name:'純白',   bg:'#f7f5f0', surface:'#fff', accent:'#2d4a7a', textColor:'#1c1c1e' },
+  { id:'dark',   name:'夜黑',   bg:'#141418', surface:'#1e1e24', accent:'#5b8dd9', textColor:'#e8e6df' },
+  { id:'forest', name:'森林',   bg:'#f0f4f0', surface:'#fff', accent:'#2d6a2d', textColor:'#1a2e1a' },
+  { id:'warm',   name:'暖橙',   bg:'#fdf6ec', surface:'#fff9f2', accent:'#a0522d', textColor:'#2d1f0e' },
+  { id:'ocean',  name:'海藍',   bg:'#eef4f8', surface:'#fff', accent:'#0077aa', textColor:'#0d2535' },
+  { id:'slate',  name:'深岩',   bg:'#1a1c20', surface:'#22252b', accent:'#7c9cc0', textColor:'#d8dde5' },
+];
+
+function applyTheme(id) {
+  document.body.dataset.theme = id;
+  const t = THEMES.find(t=>t.id===id)||THEMES[0];
+  document.getElementById('theme-color-meta').content = t.bg;
+  localStorage.setItem('cat_theme', id);
+  renderThemeGrid();
+}
+
+function renderThemeGrid() {
+  const grid = document.getElementById('theme-grid');
+  if (!grid) return;
+  const current = document.body.dataset.theme || 'light';
+  grid.innerHTML = '';
+  THEMES.forEach(t => {
+    const sw = document.createElement('div');
+    sw.className = 'theme-swatch' + (t.id===current?' active':'');
+    sw.style.background = t.bg;
+    sw.style.border = `2px solid ${t.id===current ? t.accent : t.bg+'44'}`;
+    sw.innerHTML = `
+      <span class="theme-check">${t.id===current?'✓':''}</span>
+      <span class="theme-swatch-name" style="color:${t.textColor};background:${t.surface}88;border-radius:6px;padding:2px 5px;">${t.name}</span>
+    `;
+    sw.onclick = () => { applyTheme(t.id); };
+    grid.appendChild(sw);
+  });
+}
+
+function openThemeModal() {
+  renderThemeGrid();
+  document.getElementById('theme-modal').classList.add('open');
+}
+
+// ═══════════════════════════════════════════
+// DATA STORE
+// ═══════════════════════════════════════════
+const TW_HOLIDAYS_BUILTIN = [
+  {month:1,day:1,name:'元旦',type:'holiday',builtin:true},
+  {month:2,day:28,name:'和平紀念日',type:'holiday',builtin:true},
+  {month:4,day:4,name:'兒童節',type:'holiday',builtin:true},
+  {month:5,day:1,name:'勞動節',type:'holiday',builtin:true},
+  {month:10,day:10,name:'國慶日',type:'holiday',builtin:true},
+  {month:12,day:25,name:'行憲紀念日',type:'holiday',builtin:true},
+];
+
+// 農曆節日查表（近年固定日期）
+const LUNAR_HOLIDAYS = {
+  2024:[{m:2,d:8,n:'除夕'},{m:2,d:9,n:'春節初一'},{m:2,d:10,n:'春節初二'},{m:2,d:11,n:'春節初三'},{m:4,d:4,n:'清明節'},{m:6,d:10,n:'端午節'},{m:9,d:17,n:'中秋節'}],
+  2025:[{m:1,d:28,n:'除夕'},{m:1,d:29,n:'春節初一'},{m:1,d:30,n:'春節初二'},{m:1,d:31,n:'春節初三'},{m:4,d:4,n:'清明節'},{m:5,d:31,n:'端午節'},{m:10,d:6,n:'中秋節'}],
+  2026:[{m:2,d:16,n:'除夕'},{m:2,d:17,n:'春節初一'},{m:2,d:18,n:'春節初二'},{m:2,d:19,n:'春節初三'},{m:4,d:5,n:'清明節'},{m:6,d:19,n:'端午節'},{m:9,d:25,n:'中秋節'}],
+  2027:[{m:2,d:5,n:'除夕'},{m:2,d:6,n:'春節初一'},{m:2,d:7,n:'春節初二'},{m:2,d:8,n:'春節初三'},{m:4,d:5,n:'清明節'},{m:6,d:9,n:'端午節'},{m:10,d:15,n:'中秋節'}],
+  2028:[{m:1,d:25,n:'除夕'},{m:1,d:26,n:'春節初一'},{m:1,d:27,n:'春節初二'},{m:1,d:28,n:'春節初三'},{m:4,d:4,n:'清明節'},{m:5,d:28,n:'端午節'},{m:10,d:3,n:'中秋節'}],
+};
+
+function loadData() {
+  try {
+    return {
+      events: JSON.parse(localStorage.getItem('cat_events')||'[]'),
+      todos: JSON.parse(localStorage.getItem('cat_todos')||'[]'),
+      importedHolidays: JSON.parse(localStorage.getItem('cat_imported_holidays')||'{}'),
+    };
+  } catch(e){ return {events:[],todos:[],importedHolidays:{}}; }
+}
+function saveData(key, data){ localStorage.setItem(key, JSON.stringify(data)); }
+
+function getEventsForDate(y,m,d) {
+  const {events, importedHolidays} = loadData();
+  const results = [];
+  // Built-in fixed holidays
+  TW_HOLIDAYS_BUILTIN.filter(h=>h.month===m&&h.day===d).forEach(h=>results.push({...h}));
+  // Lunar holidays
+  const lunar = LUNAR_HOLIDAYS[y]||[];
+  lunar.filter(h=>h.m===m&&h.d===d).forEach(h=>results.push({name:h.n,type:'holiday',builtin:true}));
+  // Imported per-year holidays
+  const ih = importedHolidays[String(y)]||[];
+  ih.filter(h=>h.month===m&&h.day===d).forEach(h=>results.push({...h,type:'holiday',builtin:true}));
+  // User events
+  events.forEach(e=>{
+    const ey=e.year?parseInt(e.year):null;
+    const em=parseInt(e.month), ed=parseInt(e.day);
+    if(em===m&&ed===d&&(ey===null||ey===y)) results.push(e);
+  });
+  return results;
+}
+
+function getTodosForDate(y,m,d) {
+  const {todos}=loadData();
+  const ds=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  return todos.filter(t=>t.dueDate===ds&&!t.done);
+}
+
+// ═══════════════════════════════════════════
+// HOLIDAY IMPORT (行政院國定假日 — 內建查表)
+// ═══════════════════════════════════════════
+
+// 完整假日資料（以 ROC 政府公告為準，含補假）
+const OFFICIAL_HOLIDAYS = {
+  2024: [
+    {month:1,day:1,name:'元旦'},{month:2,day:8,name:'除夕'},{month:2,day:9,name:'春節初一'},
+    {month:2,day:10,name:'春節初二'},{month:2,day:11,name:'春節初三'},{month:2,day:12,name:'春節初四'},
+    {month:2,day:13,name:'春節初五'},{month:2,day:28,name:'和平紀念日'},
+    {month:4,day:4,name:'兒童節/清明節'},{month:4,day:5,name:'清明節補假'},
+    {month:5,day:1,name:'勞動節'},{month:6,day:10,name:'端午節'},
+    {month:9,day:17,name:'中秋節'},{month:10,day:10,name:'國慶日'},
+  ],
+  2025: [
+    {month:1,day:1,name:'元旦'},{month:1,day:27,name:'春節休假'},
+    {month:1,day:28,name:'除夕'},{month:1,day:29,name:'春節初一'},
+    {month:1,day:30,name:'春節初二'},{month:1,day:31,name:'春節初三'},
+    {month:2,day:28,name:'和平紀念日'},{month:4,day:3,name:'兒童節補假'},
+    {month:4,day:4,name:'兒童節'},{month:4,day:5,name:'清明節'},
+    {month:5,day:1,name:'勞動節'},{month:5,day:30,name:'端午節補假'},
+    {month:5,day:31,name:'端午節'},{month:10,day:6,name:'中秋節'},
+    {month:10,day:10,name:'國慶日'},
+  ],
+  2026: [
+    {month:1,day:1,name:'元旦'},{month:2,day:16,name:'除夕'},
+    {month:2,day:17,name:'春節初一'},{month:2,day:18,name:'春節初二'},
+    {month:2,day:19,name:'春節初三'},{month:2,day:20,name:'春節初四'},
+    {month:2,day:28,name:'和平紀念日'},{month:4,day:3,name:'兒童節補假'},
+    {month:4,day:4,name:'兒童節'},{month:4,day:5,name:'清明節'},
+    {month:5,day:1,name:'勞動節'},{month:6,day:19,name:'端午節'},
+    {month:6,day:20,name:'端午節補假'},{month:9,day:25,name:'中秋節'},
+    {month:10,day:10,name:'國慶日'},
+  ],
+  2027: [
+    {month:1,day:1,name:'元旦'},{month:2,day:5,name:'除夕'},
+    {month:2,day:6,name:'春節初一'},{month:2,day:7,name:'春節初二'},
+    {month:2,day:8,name:'春節初三'},{month:2,day:9,name:'春節初四'},
+    {month:2,day:28,name:'和平紀念日'},{month:4,day:4,name:'兒童節/清明節'},
+    {month:5,day:1,name:'勞動節'},{month:6,day:9,name:'端午節'},
+    {month:10,day:10,name:'國慶日'},{month:10,day:15,name:'中秋節'},
+  ],
+  2028: [
+    {month:1,day:1,name:'元旦'},{month:1,day:25,name:'除夕'},
+    {month:1,day:26,name:'春節初一'},{month:1,day:27,name:'春節初二'},
+    {month:1,day:28,name:'春節初三'},{month:2,day:28,name:'和平紀念日'},
+    {month:4,day:4,name:'兒童節/清明節'},{month:5,day:1,name:'勞動節'},
+    {month:5,day:28,name:'端午節'},{month:10,day:3,name:'中秋節'},
+    {month:10,day:10,name:'國慶日'},
+  ],
+};
+
+function initImportYearSel() {
+  const sel = document.getElementById('import-year-sel');
+  if (!sel) return;
+  const years = Object.keys(OFFICIAL_HOLIDAYS).map(Number).sort();
+  sel.innerHTML = '';
+  years.forEach(y => {
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = `${y} 年`;
+    if (y === new Date().getFullYear()) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function importHolidays() {
+  const sel = document.getElementById('import-year-sel');
+  const year = parseInt(sel.value);
+  const statusEl = document.getElementById('import-status');
+  const holidays = OFFICIAL_HOLIDAYS[year];
+  if (!holidays) {
+    statusEl.textContent = `⚠ 查無 ${year} 年資料`;
+    statusEl.className = 'import-status error';
+    return;
+  }
+  const {importedHolidays} = loadData();
+  importedHolidays[String(year)] = holidays;
+  saveData('cat_imported_holidays', importedHolidays);
+  statusEl.textContent = `✓ 已匯入 ${year} 年共 ${holidays.length} 個國定假日`;
+  statusEl.className = 'import-status';
+  renderCalendar();
+  setTimeout(() => { statusEl.textContent=''; }, 3000);
+}
+
+// ═══════════════════════════════════════════
+// CALENDAR
+// ═══════════════════════════════════════════
+const MONTHS_TW = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+const WEEKDAY_TW = ['週日','週一','週二','週三','週四','週五','週六'];
+
+const state = {
+  year: new Date().getFullYear(),
+  month: new Date().getMonth()+1,
+  selectedDate: null,
+  currentView:'calendar',
+  selectedEventType:'holiday',
+  repeatYearly: true,
+};
+
+function renderCalendar() {
+  const {year,month} = state;
+  // ── 年月標題 (修正 #5)
+  document.getElementById('month-year-label').textContent = `${year} 年`;
+  document.getElementById('month-main-label').textContent = MONTHS_TW[month-1];
+
+  const grid = document.getElementById('calendar-grid');
+  grid.innerHTML = '';
+  const firstDay = new Date(year,month-1,1).getDay();
+  const daysInMonth = new Date(year,month,0).getDate();
+  const daysInPrev = new Date(year,month-1,0).getDate();
+  const today = new Date();
+
+  for(let i=firstDay-1;i>=0;i--) {
+    const d=daysInPrev-i;
+    const pm=month===1?12:month-1, py=month===1?year-1:year;
+    grid.appendChild(createDayCell(py,pm,d,true));
+  }
+  for(let d=1;d<=daysInMonth;d++) {
+    const isToday=year===today.getFullYear()&&month===today.getMonth()+1&&d===today.getDate();
+    grid.appendChild(createDayCell(year,month,d,false,isToday));
+  }
+  const remaining=(7-((firstDay+daysInMonth)%7))%7;
+  for(let d=1;d<=remaining;d++) {
+    const nm=month===12?1:month+1, ny=month===12?year+1:year;
+    grid.appendChild(createDayCell(ny,nm,d,true));
+  }
+
+  if(state.selectedDate) {
+    renderDayPanel(state.selectedDate.y,state.selectedDate.m,state.selectedDate.d);
+  }
+}
+
+function createDayCell(y,m,d,otherMonth,isToday) {
+  const cell=document.createElement('div');
+  cell.className='day-cell';
+  const dow=new Date(y,m-1,d).getDay();
+  if(otherMonth) cell.classList.add('other-month');
+  if(isToday) cell.classList.add('today');
+  if(dow===0) cell.classList.add('sunday');
+  if(dow===6) cell.classList.add('saturday');
+
+  const evs=getEventsForDate(y,m,d);
+  const todos=getTodosForDate(y,m,d);
+  const hasHoliday=evs.some(e=>e.type==='holiday');
+  if(hasHoliday&&!isToday) cell.classList.add('holiday-bg');
+
+  const sel=state.selectedDate;
+  if(sel&&sel.y===y&&sel.m===m&&sel.d===d&&!otherMonth) cell.classList.add('selected');
+
+  const numEl=document.createElement('div');
+  numEl.className='day-num';
+  numEl.textContent=d;
+  cell.appendChild(numEl);
+
+  // ── 文字標籤顯示 (修正 #4)
+  const allItems=[
+    ...evs.map(e=>({name:e.name,cls:e.type==='holiday'?'t-holiday':e.type==='birthday'?'t-birthday':'t-custom'})),
+    ...todos.map(t=>({name:t.text,cls:'t-todo'}))
+  ];
+
+  if(allItems.length>0) {
+    const tagWrap=document.createElement('div');
+    tagWrap.className='day-tags';
+    const maxShow = otherMonth ? 0 : 2;
+    allItems.slice(0,maxShow).forEach(item=>{
+      const tag=document.createElement('div');
+      tag.className=`day-tag ${item.cls}`;
+      tag.textContent=item.name;
+      tagWrap.appendChild(tag);
+    });
+    if(allItems.length>maxShow&&maxShow>0) {
+      const more=document.createElement('div');
+      more.className='day-more';
+      more.textContent=`+${allItems.length-maxShow}`;
+      tagWrap.appendChild(more);
+    }
+    cell.appendChild(tagWrap);
+  }
+
+  if(!otherMonth) {
+    cell.onclick=()=>{
+      state.selectedDate={y,m,d};
+      renderCalendar();
+      renderDayPanel(y,m,d);
+      document.getElementById('day-panel').scrollIntoView({behavior:'smooth',block:'nearest'});
+    };
+  }
+  return cell;
+}
+
+function renderDayPanel(y,m,d) {
+  const dow=new Date(y,m-1,d).getDay();
+  document.getElementById('panel-date').textContent=`${y}年${m}月${d}日`;
+  document.getElementById('panel-weekday').textContent=WEEKDAY_TW[dow];
+  const evs=getEventsForDate(y,m,d);
+  const todos=getTodosForDate(y,m,d);
+  const container=document.getElementById('panel-events');
+  container.innerHTML='';
+  if(evs.length===0&&todos.length===0){
+    container.innerHTML='<div class="no-events">本日無特別事項</div>';
+    return;
+  }
+  const typeColors={holiday:'var(--holiday)',birthday:'var(--birthday)',custom:'var(--accent)'};
+  const typeLabels={holiday:'假日',birthday:'生日',custom:'事件'};
+  evs.forEach(e=>{
+    const item=document.createElement('div');
+    item.className='event-item';
+    item.innerHTML=`<div class="event-dot" style="background:${typeColors[e.type]||'var(--accent)'}"></div><div class="event-label">${e.name}${e.note?' · '+e.note:''}</div><span class="event-type-badge">${typeLabels[e.type]||'假日'}</span>`;
+    container.appendChild(item);
+  });
+  const pColors={high:'var(--holiday)',medium:'#f39c12',low:'var(--todo-done)'};
+  todos.forEach(t=>{
+    const item=document.createElement('div');
+    item.className='event-item';
+    item.innerHTML=`<div class="event-dot" style="background:var(--accent)"></div><div class="event-label">${t.text}</div><span class="event-type-badge" style="color:${pColors[t.priority]}">待辦</span>`;
+    container.appendChild(item);
+  });
+}
+
+function prevMonth(){if(state.month===1){state.month=12;state.year--;}else state.month--;state.selectedDate=null;renderCalendar();}
+function nextMonth(){if(state.month===12){state.month=1;state.year++;}else state.month++;state.selectedDate=null;renderCalendar();}
+function goToday(){const n=new Date();state.year=n.getFullYear();state.month=n.getMonth()+1;state.selectedDate={y:state.year,m:state.month,d:n.getDate()};renderCalendar();renderDayPanel(state.year,state.month,n.getDate());}
+
+// ═══════════════════════════════════════════
+// UPCOMING
+// ═══════════════════════════════════════════
+function renderUpcoming(){
+  const list=document.getElementById('upcoming-list');
+  list.innerHTML='';
+  const today=new Date();today.setHours(0,0,0,0);
+  const year=today.getFullYear();
+  const upcoming=[];
+  const window60=new Date(today.getTime()+60*86400000);
+  const {events,importedHolidays}=loadData();
+
+  function tryAdd(name,type,dateObj,extra){
+    if(dateObj>=today&&dateObj<=window60) upcoming.push({name,type,dateObj,...extra});
+  }
+
+  TW_HOLIDAYS_BUILTIN.forEach(e=>{
+    tryAdd(e.name,e.type,new Date(year,e.month-1,e.day));
+    tryAdd(e.name,e.type,new Date(year+1,e.month-1,e.day));
+  });
+  (LUNAR_HOLIDAYS[year]||[]).forEach(h=>tryAdd(h.n,'holiday',new Date(year,h.m-1,h.d)));
+  (importedHolidays[String(year)]||[]).forEach(h=>tryAdd(h.name,'holiday',new Date(year,h.month-1,h.day)));
+
+  events.forEach(e=>{
+    const ey=e.year?parseInt(e.year):null;
+    if(ey===null){
+      tryAdd(e.name,e.type,new Date(year,parseInt(e.month)-1,parseInt(e.day)));
+      tryAdd(e.name,e.type,new Date(year+1,parseInt(e.month)-1,parseInt(e.day)));
+    } else {
+      tryAdd(e.name,e.type,new Date(ey,parseInt(e.month)-1,parseInt(e.day)));
+    }
+  });
+
+  const {todos}=loadData();
+  todos.filter(t=>t.dueDate&&!t.done).forEach(t=>{
+    const d=new Date(t.dueDate+'T00:00:00');
+    tryAdd(t.text,'todo',d,{priority:t.priority});
+  });
+
+  // Dedup & sort
+  const seen=new Set();
+  const deduped=upcoming.filter(e=>{
+    const k=e.name+'|'+e.dateObj.toDateString();
+    if(seen.has(k)) return false; seen.add(k); return true;
+  });
+  deduped.sort((a,b)=>a.dateObj-b.dateObj);
+
+  if(deduped.length===0){list.innerHTML='<div class="empty-state"><div class="empty-icon">🌿</div>近60天無特別事項</div>';return;}
+
+  const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const typeColors={holiday:'var(--holiday)',birthday:'var(--birthday)',custom:'var(--accent)',todo:'#27ae60'};
+
+  deduped.forEach(e=>{
+    const daysLeft=Math.round((e.dateObj-today)/86400000);
+    const card=document.createElement('div');
+    card.className='upcoming-card';
+    card.innerHTML=`
+      <div class="upcoming-date-box">
+        <div class="upcoming-month">${MONTHS[e.dateObj.getMonth()]}</div>
+        <div class="upcoming-day">${e.dateObj.getDate()}</div>
+      </div>
+      <div class="upcoming-info">
+        <div class="upcoming-title">${e.name}</div>
+        <div class="upcoming-sub">${daysLeft===0?'📍 今天':daysLeft+' 天後'}</div>
+      </div>
+      <div class="upcoming-badge" style="background:${typeColors[e.type]||'var(--accent)'}"></div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+// ═══════════════════════════════════════════
+// TODO
+// ═══════════════════════════════════════════
+function renderTodos(){
+  const list=document.getElementById('todo-list');
+  list.innerHTML='';
+  const {todos}=loadData();
+  if(todos.length===0){list.innerHTML='<div class="empty-state"><div class="empty-icon">✨</div>尚無待辦事項</div>';return;}
+  const incomplete=todos.filter(t=>!t.done).sort((a,b)=>({high:0,medium:1,low:2}[a.priority]||1)-({high:0,medium:1,low:2}[b.priority]||1));
+  const done=todos.filter(t=>t.done);
+  const pLabels={high:'高',medium:'中',low:'低'};
+  [...incomplete,...done].forEach(t=>{
+    const item=document.createElement('div');
+    item.className='todo-item'+(t.done?' done':'');
+    item.innerHTML=`
+      <div class="todo-check" onclick="toggleTodo('${t.id}')">${t.done?'✓':''}</div>
+      <div class="todo-content">
+        <div class="todo-text">${t.text}</div>
+        <div class="todo-meta">
+          <span class="priority-badge ${t.priority}">${pLabels[t.priority]||'中'}優先</span>
+          ${t.dueDate?`<span>${formatDate(t.dueDate)}</span>`:''}
+        </div>
+      </div>
+      <button class="btn-icon" onclick="deleteTodo('${t.id}')" style="color:var(--holiday)">✕</button>
+    `;
+    list.appendChild(item);
+  });
+}
+function formatDate(ds){if(!ds)return'';const[y,m,d]=ds.split('-');return`${parseInt(m)}/${parseInt(d)}`;}
+function toggleTodo(id){const{todos}=loadData();const t=todos.find(t=>t.id===id);if(t){t.done=!t.done;saveData('cat_todos',todos);renderTodos();renderCalendar();}}
+function deleteTodo(id){const{todos}=loadData();saveData('cat_todos',todos.filter(t=>t.id!==id));renderTodos();renderCalendar();}
+
+// ═══════════════════════════════════════════
+// EVENTS VIEW
+// ═══════════════════════════════════════════
+function renderEvents(){
+  const list=document.getElementById('events-list');
+  list.innerHTML='';
+  const{events}=loadData();
+  const typeIcons={holiday:'🎌',birthday:'🎂',custom:'⭐'};
+  const typeClasses={holiday:'holiday',birthday:'birthday',custom:'todo'};
+  if(events.length===0){list.innerHTML='<div class="empty-state"><div class="empty-icon">🗂</div>尚無自訂事件<br><small>點選右上角新增</small></div>';return;}
+  events.forEach(e=>{
+    const card=document.createElement('div');
+    card.className='event-card';
+    const repeat=!e.year?'🔁 每年重複':`📌 ${e.year}年`;
+    card.innerHTML=`
+      <div class="event-card-left">
+        <div class="event-card-icon ${typeClasses[e.type]||''}">${typeIcons[e.type]||'📌'}</div>
+        <div>
+          <div class="event-card-title">${e.name}</div>
+          <div class="event-card-date">${e.month}/${e.day} · ${repeat}${e.note?' · '+e.note:''}</div>
+        </div>
+      </div>
+      <button class="btn-icon" onclick="deleteEvent('${e.id}')" style="color:var(--holiday)">✕</button>
+    `;
+    list.appendChild(card);
+  });
+}
+function deleteEvent(id){const{events}=loadData();saveData('cat_events',events.filter(e=>e.id!==id));renderEvents();renderCalendar();}
+
+// ═══════════════════════════════════════════
+// MODALS
+// ═══════════════════════════════════════════
+function openEventModal(){
+  state.selectedEventType='holiday';
+  state.repeatYearly=true;
+  document.querySelectorAll('.type-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector('[data-type="holiday"]').classList.add('active');
+  document.getElementById('event-name').value='';
+  document.getElementById('event-month').value=state.month;
+  document.getElementById('event-day').value='';
+  document.getElementById('event-year').value='';
+  document.getElementById('event-note').value='';
+  setRepeat(true);
+  document.getElementById('event-modal').classList.add('open');
+}
+function openTodoModal(){
+  document.getElementById('todo-text-input').value='';
+  document.getElementById('todo-date-input').value='';
+  document.getElementById('todo-priority').value='medium';
+  document.getElementById('todo-modal').classList.add('open');
+}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+function selectEventType(type){
+  state.selectedEventType=type;
+  document.querySelectorAll('.type-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector(`[data-type="${type}"]`).classList.add('active');
+}
+
+// 每年重複切換 (修正 #2)
+function setRepeat(yearly){
+  state.repeatYearly=yearly;
+  document.getElementById('repeat-yes').className='repeat-opt'+(yearly?' active':'');
+  document.getElementById('repeat-no').className='repeat-opt'+(yearly?'':' active');
+  document.getElementById('year-group').style.display=yearly?'none':'block';
+}
+
+function saveEvent(){
+  const name=document.getElementById('event-name').value.trim();
+  const month=parseInt(document.getElementById('event-month').value);
+  const day=parseInt(document.getElementById('event-day').value);
+  const yearVal=document.getElementById('event-year').value.trim();
+  const note=document.getElementById('event-note').value.trim();
+  if(!name||!day||day<1||day>31){alert('請填寫事件名稱與日期');return;}
+  const{events}=loadData();
+  events.push({id:Date.now().toString(),type:state.selectedEventType,name,month,day,year:state.repeatYearly?null:(yearVal?parseInt(yearVal):new Date().getFullYear()),note});
+  saveData('cat_events',events);
+  closeModal('event-modal');
+  renderCalendar();renderEvents();
+}
+function saveTodo(){
+  const text=document.getElementById('todo-text-input').value.trim();
+  if(!text){alert('請輸入待辦內容');return;}
+  const dueDate=document.getElementById('todo-date-input').value;
+  const priority=document.getElementById('todo-priority').value;
+  const{todos}=loadData();
+  todos.push({id:Date.now().toString(),text,dueDate,priority,done:false,created:new Date().toISOString()});
+  saveData('cat_todos',todos);
+  closeModal('todo-modal');
+  renderTodos();renderCalendar();
+}
+
+function clearAll(){
+  if(confirm('確定要清除所有資料？此操作無法復原。')){
+    localStorage.removeItem('cat_events');
+    localStorage.removeItem('cat_todos');
+    localStorage.removeItem('cat_imported_holidays');
+    renderCalendar();renderTodos();renderEvents();
+    alert('✓ 資料已清除');
+  }
+}
+
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+function switchView(view){
+  state.currentView=view;
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('view-'+view).classList.add('active');
+  const navEl=document.querySelector(`[data-view="${view}"]`);
+  if(navEl) navEl.classList.add('active');
+  document.getElementById('month-nav-bar').style.display=view==='calendar'?'':'none';
+  const fab=document.getElementById('fab');
+  if(view==='todo'||view==='events'){fab.classList.remove('hidden');}else{fab.classList.add('hidden');}
+  if(view==='upcoming') renderUpcoming();
+  if(view==='todo') renderTodos();
+  if(view==='events') renderEvents();
+}
+function handleFab(){
+  if(state.currentView==='todo') openTodoModal();
+  else if(state.currentView==='events') openEventModal();
+}
+document.querySelectorAll('.modal-overlay').forEach(overlay=>{
+  overlay.addEventListener('click',e=>{if(e.target===overlay) overlay.classList.remove('open');});
+});
+
+// ═══════════════════════════════════════════
+// PWA MANIFEST
+// ═══════════════════════════════════════════
+const manifest={name:'CAT — 行事曆與待辦',short_name:'CAT',start_url:'.',display:'standalone',background_color:'#f7f5f0',theme_color:'#2d4a7a',orientation:'portrait',icons:[{src:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232d4a7a'/><text y='68' x='50' text-anchor='middle' font-size='54' fill='white'>📅</text></svg>",sizes:'192x192',type:'image/svg+xml'}]};
+const mblob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
+document.getElementById('manifest-link').href=URL.createObjectURL(mblob);
+document.getElementById('manifest-link').rel='manifest';
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+function init(){
+  // Restore theme
+  const savedTheme=localStorage.getItem('cat_theme')||'light';
+  applyTheme(savedTheme);
+  // Init import year selector
+  initImportYearSel();
+  // Set today as selected
+  const n=new Date();
+  state.selectedDate={y:n.getFullYear(),m:n.getMonth()+1,d:n.getDate()};
+  renderCalendar();
+  renderDayPanel(state.selectedDate.y,state.selectedDate.m,state.selectedDate.d);
+  document.getElementById('fab').classList.add('hidden');
+}
+init();
+</script>
+</body>
+</html>
