@@ -352,29 +352,44 @@ body{font-family:'Noto Serif TC','Hiragino Sans GB',serif;background:var(--bg);c
   
   <!-- CLOUD SYNC CARD -->
   <div class="sync-card">
-    <div style="font-size:14px;font-weight:600;margin-bottom:10px;">☁ 雲端同步（Google Sheets）</div>
+    <div style="font-size:14px;font-weight:600;margin-bottom:10px;">☁ 雲端同步（JSONBin.io）</div>
     <div class="sync-status-row">
       <div class="sync-dot" id="sync-dot"></div>
       <div>
         <div class="sync-label" id="sync-label">尚未設定</div>
-        <div class="sync-sub" id="sync-sub">設定 Google Apps Script URL 以啟用雲端備份</div>
+        <div class="sync-sub" id="sync-sub">免費雲端備份，手機PC資料互通</div>
       </div>
     </div>
+
     <div style="margin-bottom:10px;">
-      <label class="form-label" style="margin-bottom:5px;display:block;">Google Apps Script 網址</label>
-      <input type="url" class="gas-url-input" id="gas-url-input" placeholder="https://script.google.com/macros/s/.../exec">
-      <div style="font-size:10px;color:var(--ink3);font-family:'DM Mono',monospace;line-height:1.5;">
-        ⓘ 請先複製下方 Apps Script 程式碼建立自己的端點，貼上後點儲存
-      </div>
+      <label class="form-label" style="margin-bottom:5px;display:block;">JSONBin Master Key</label>
+      <input type="password" class="gas-url-input" id="jb-key-input" placeholder="$2a$10$...（從 jsonbin.io 取得）">
+      <label class="form-label" style="margin-top:8px;margin-bottom:5px;display:block;">Bin ID（首次上傳後自動填入）</label>
+      <input type="text" class="gas-url-input" id="jb-bin-input" placeholder="留空則自動建立新 Bin">
     </div>
+
     <div class="sync-actions">
-      <button class="sync-btn primary" onclick="saveGasUrl()">儲存URL</button>
+      <button class="sync-btn primary" onclick="saveJbConfig()">儲存設定</button>
       <button class="sync-btn" onclick="syncToCloud()">⬆ 上傳備份</button>
       <button class="sync-btn" onclick="syncFromCloud()">⬇ 還原資料</button>
     </div>
+
     <details style="margin-top:12px;">
-      <summary style="font-size:11px;font-family:'DM Mono',monospace;color:var(--accent);cursor:pointer;padding:4px 0;">📋 展開 Apps Script 程式碼（點此複製）</summary>
-      <pre id="gas-code-block" style="font-size:10px;font-family:'DM Mono',monospace;background:var(--surface2);border-radius:8px;padding:10px;margin-top:8px;overflow-x:auto;white-space:pre-wrap;line-height:1.5;color:var(--ink2);cursor:pointer;" onclick="copyGasCode()" title="點擊複製"></pre>
+      <summary style="font-size:11px;font-family:'DM Mono',monospace;color:var(--accent);cursor:pointer;padding:4px 0;">
+        📋 如何取得 JSONBin 設定（點此展開）
+      </summary>
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--ink2);background:var(--surface2);border-radius:8px;padding:10px;margin-top:8px;line-height:1.8;">
+        1. 開啟 <strong>jsonbin.io</strong> → 免費註冊<br>
+        2. 右上角頭像 → <strong>API Keys</strong><br>
+        3. 複製 <strong>Master Key</strong>（$2a$10$...）<br>
+        4. 貼入上方欄位 → 點「儲存設定」<br>
+        5. 點「⬆ 上傳備份」→ 自動建立 Bin<br>
+        6. 在其他裝置重複步驟 1-4，<br>
+           Bin ID 填入相同值 → 點「⬇ 還原」<br>
+        <br>
+        ⓘ 免費方案：每月 10,000 次請求<br>
+        ⓘ 資料存放在美國 JSONBin 伺服器
+      </div>
     </details>
   </div>
 
@@ -497,95 +512,8 @@ body{font-family:'Noto Serif TC','Hiragino Sans GB',serif;background:var(--bg);c
 // ═══════════════════════════════════════════
 // GOOGLE APPS SCRIPT CODE (for user to deploy)
 // ═══════════════════════════════════════════
-const GAS_CODE = `// CAT — Google Apps Script 後端 v4
-// ════════════════════════════════════════
-// 部署步驟：
-// 1. Google Sheets > 擴充功能 > Apps Script
-// 2. 刪除原有內容，貼上此程式碼（全選→貼上）
-// 3. 右上角「部署」>「新增部署」
-//    類型：網頁應用程式
-//    執行身分：我
-//    存取權：任何人（不需登入）
-// 4. 點「部署」→ 複製網址 → 貼入 CAT 設定
-// ★ 若已部署過：「部署」>「管理部署」> 鉛筆圖示
-//    > 版本選「新版本」> 部署（URL 不變）
-// ════════════════════════════════════════
-
-const SHEET_NAME = 'CAT_Data';
-
-function jsonOut(obj) {
-  return ContentService
-    .createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-// ── doGet：處理讀取(read) 與 GET寫入(write) ──
-function doGet(e) {
-  try {
-    const action = (e && e.parameter && e.parameter.action)
-      ? e.parameter.action : 'ping';
-
-    // ── 讀取資料 ──
-    if (action === 'read') {
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
-      const sheet = ss.getSheetByName(SHEET_NAME);
-      if (!sheet) return jsonOut({ status: 'empty', data: null });
-      const val = sheet.getRange('A1').getValue();
-      if (!val) return jsonOut({ status: 'empty', data: null });
-      return jsonOut({ status: 'ok', data: String(val) });
-    }
-
-    // ── GET 寫入（data 以 base64 傳入，繞過 CORS POST 限制）──
-    if (action === 'write') {
-      const b64 = e.parameter.data || '';
-      if (!b64) return jsonOut({ status: 'error', message: 'No data param' });
-
-      // base64 decode
-      const decoded = Utilities.newBlob(
-        Utilities.base64Decode(b64)
-      ).getDataAsString();
-
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
-      let sheet = ss.getSheetByName(SHEET_NAME);
-      if (!sheet) sheet = ss.insertSheet(SHEET_NAME);
-
-      sheet.getRange('A1').setValue(decoded);
-      sheet.getRange('B1').setValue(new Date().toISOString());
-      return jsonOut({ status: 'ok', savedAt: new Date().toISOString() });
-    }
-
-    // ── 健康檢查 ping ──
-    return jsonOut({
-      status: 'ok',
-      message: 'CAT GAS v4 running',
-      time: new Date().toISOString()
-    });
-
-  } catch(err) {
-    return jsonOut({ status: 'error', message: err.toString() });
-  }
-}
-
-// ── doPost：保留相容性（非必要但保留）──
-function doPost(e) {
-  try {
-    if (!e || !e.postData || !e.postData.contents) {
-      return jsonOut({ status: 'error', message: 'No body' });
-    }
-    const body = JSON.parse(e.postData.contents);
-    if (body.action !== 'write') {
-      return jsonOut({ status: 'error', message: 'Unknown action' });
-    }
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    let sheet = ss.getSheetByName(SHEET_NAME);
-    if (!sheet) sheet = ss.insertSheet(SHEET_NAME);
-    sheet.getRange('A1').setValue(body.payload);
-    sheet.getRange('B1').setValue(new Date().toISOString());
-    return jsonOut({ status: 'ok', savedAt: new Date().toISOString() });
-  } catch(err) {
-    return jsonOut({ status: 'error', message: err.toString() });
-  }
-}`;
+const GAS_CODE = `此版本使用 JSONBin.io 雲端同步，不需要 Google Apps Script。
+請至 jsonbin.io 免費註冊取得 Master Key。`;
 
 // ═══════════════════════════════════════════
 // THEMES
@@ -641,12 +569,20 @@ function saveData(key, data) {
 // ═══════════════════════════════════════════
 // CLOUD SYNC (Google Apps Script)
 // ═══════════════════════════════════════════
-function getGasUrl() { return localStorage.getItem('cat_gas_url')||''; }
-function saveGasUrl() {
-  const url = document.getElementById('gas-url-input').value.trim();
-  localStorage.setItem('cat_gas_url', url);
-  updateSyncStatus(url ? 'ok' : 'none', url ? '已設定 — 尚未同步' : '尚未設定');
-  if (url) alert('✓ URL 已儲存，請點「上傳備份」測試連線');
+function getJbConfig() {
+  return {
+    key: localStorage.getItem('cat_jb_key') || '',
+    bin: localStorage.getItem('cat_jb_bin') || '',
+  };
+}
+function saveJbConfig() {
+  const key = document.getElementById('jb-key-input').value.trim();
+  const bin = document.getElementById('jb-bin-input').value.trim();
+  if (!key) { alert('請填入 Master Key'); return; }
+  localStorage.setItem('cat_jb_key', key);
+  if (bin) localStorage.setItem('cat_jb_bin', bin);
+  updateSyncStatus('ok', '設定已儲存', bin ? `Bin: ${bin}` : '首次上傳將自動建立 Bin');
+  alert('✓ 設定已儲存，請點「上傳備份」測試');
 }
 function updateSyncStatus(state, label, sub) {
   const dot = document.getElementById('sync-dot');
@@ -660,96 +596,111 @@ function updateSyncStatus(state, label, sub) {
   if (indicator) indicator.textContent = state==='ok'?'☁':state==='err'?'⚠':'☁';
 }
 async function syncToCloud() {
-  const url = getGasUrl();
-  if (!url) { alert('請先在設定頁面填入 Google Apps Script URL'); switchView('settings'); return; }
-  updateSyncStatus('syncing','同步中...','正在上傳資料到 Google Sheets');
+  const { key, bin } = getJbConfig();
+  if (!key) { alert('請先在設定頁填入 JSONBin Master Key'); switchView('settings'); return; }
+  updateSyncStatus('syncing', '同步中...', '正在上傳至 JSONBin');
 
-  const payload = JSON.stringify({
-    events:           JSON.parse(localStorage.getItem('cat_events')||'[]'),
-    todos:            JSON.parse(localStorage.getItem('cat_todos')||'[]'),
-    importedHolidays: JSON.parse(localStorage.getItem('cat_imported_holidays')||'{}'),
-    theme:            localStorage.getItem('cat_theme')||'light',
-    syncAt:           new Date().toISOString()
-  });
+  const payload = {
+    events:           JSON.parse(localStorage.getItem('cat_events')           || '[]'),
+    todos:            JSON.parse(localStorage.getItem('cat_todos')             || '[]'),
+    importedHolidays: JSON.parse(localStorage.getItem('cat_imported_holidays') || '{}'),
+    theme:            localStorage.getItem('cat_theme') || 'light',
+    syncAt:           new Date().toISOString(),
+  };
 
   try {
-    // ── GAS CORS solution: encode payload as base64 and send via GET ──
-    // GAS doGet allows cross-origin reads; we pass data as a URL param.
-    // btoa/atob handles standard base64; encodeURIComponent makes it URL-safe.
-    const b64 = btoa(unescape(encodeURIComponent(payload)));
-    const getUrl = url + '?action=write&data=' + encodeURIComponent(b64);
+    let res, data;
 
-    const res = await fetch(getUrl, { method: 'GET', redirect: 'follow' });
-    const text = await res.text();
-    let json = { status: 'ok' };
-    try { json = JSON.parse(text); } catch(_) {}
+    if (!bin) {
+      // ── 首次：建立新 Bin ──
+      res = await fetch('https://api.jsonbin.io/v3/b', {
+        method:  'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'X-Master-Key':  key,
+          'X-Bin-Name':    'CAT-backup',
+          'X-Bin-Private': 'false',
+        },
+        body: JSON.stringify(payload),
+      });
+      data = await res.json();
+      if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
 
-    if (json.status === 'ok') {
-      const now = new Date().toLocaleString('zh-TW');
-      localStorage.setItem('cat_last_sync', now);
-      updateSyncStatus('ok', '已同步至雲端', `上次: ${now}`);
-      alert('✓ 資料已上傳至 Google Sheets');
+      const newBin = data.metadata.id;
+      localStorage.setItem('cat_jb_bin', newBin);
+      // 更新 UI 欄位
+      const binInput = document.getElementById('jb-bin-input');
+      if (binInput) binInput.value = newBin;
     } else {
-      throw new Error(json.message || 'GAS 回傳錯誤');
+      // ── 更新既有 Bin ──
+      res = await fetch(`https://api.jsonbin.io/v3/b/${bin}`, {
+        method:  'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Master-Key': key,
+        },
+        body: JSON.stringify(payload),
+      });
+      data = await res.json();
+      if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
     }
+
+    const now = new Date().toLocaleString('zh-TW');
+    localStorage.setItem('cat_last_sync', now);
+    const currentBin = localStorage.getItem('cat_jb_bin');
+    updateSyncStatus('ok', '已同步至雲端', `上次: ${now}`);
+    alert(`✓ 資料已上傳至 JSONBin\nBin ID: ${currentBin}\n（請記下此 ID 供其他裝置使用）`);
+
   } catch(e) {
-    updateSyncStatus('err', '同步失敗', e.message);
-    alert('❌ 同步失敗：' + e.message + '\n\n請確認 GAS URL 正確且已重新部署');
+    updateSyncStatus('err', '上傳失敗', e.message);
+    alert('❌ 上傳失敗：' + e.message + '\n\n請確認 Master Key 是否正確');
   }
 }
 async function syncFromCloud() {
-  const url = getGasUrl();
-  if (!url) { alert('請先在設定頁面填入 Google Apps Script URL'); return; }
+  const { key, bin } = getJbConfig();
+  if (!key) { alert('請先在設定頁填入 JSONBin Master Key'); return; }
+  if (!bin) { alert('請先填入 Bin ID（從上傳裝置複製）'); return; }
   if (!confirm('從雲端還原資料將覆蓋本機資料，確定繼續？')) return;
-  updateSyncStatus('syncing', '還原中...', '正在從 Google Sheets 下載資料');
-  try {
-    const res = await fetch(url + '?action=read', { method: 'GET', redirect: 'follow' });
-    const text = await res.text();
-    const json = JSON.parse(text);
+  updateSyncStatus('syncing', '還原中...', '正在從 JSONBin 下載');
 
-    if (json.status === 'ok' && json.data) {
-      // data might be raw JSON string or base64 — handle both
-      let remote;
-      try {
-        remote = JSON.parse(json.data);
-      } catch(_) {
-        // try base64 decode
-        remote = JSON.parse(decodeURIComponent(escape(atob(json.data))));
-      }
-      if (remote.events)           localStorage.setItem('cat_events',             JSON.stringify(remote.events));
-      if (remote.todos)            localStorage.setItem('cat_todos',              JSON.stringify(remote.todos));
-      if (remote.importedHolidays) localStorage.setItem('cat_imported_holidays',  JSON.stringify(remote.importedHolidays));
-      if (remote.theme)            applyTheme(remote.theme);
-      const now = new Date().toLocaleString('zh-TW');
-      localStorage.setItem('cat_last_sync', now);
-      updateSyncStatus('ok', '已從雲端還原', `還原時間: ${now}`);
-      renderCalendar(); renderTodos(); renderEvents();
-      alert('✓ 資料已從 Google Sheets 還原');
-    } else if (json.status === 'empty') {
-      alert('⚠ 雲端目前沒有備份資料，請先上傳備份');
-      updateSyncStatus('ok', '雲端無資料', '請先點「上傳備份」');
-    } else {
-      throw new Error(json.message || '無法解析雲端資料');
-    }
+  try {
+    const res = await fetch(`https://api.jsonbin.io/v3/b/${bin}/latest`, {
+      headers: { 'X-Master-Key': key },
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+
+    const remote = data.record;
+    if (!remote) throw new Error('Bin 內容為空');
+
+    if (remote.events)           localStorage.setItem('cat_events',            JSON.stringify(remote.events));
+    if (remote.todos)            localStorage.setItem('cat_todos',             JSON.stringify(remote.todos));
+    if (remote.importedHolidays) localStorage.setItem('cat_imported_holidays', JSON.stringify(remote.importedHolidays));
+    if (remote.theme)            applyTheme(remote.theme);
+
+    const now = new Date().toLocaleString('zh-TW');
+    localStorage.setItem('cat_last_sync', now);
+    updateSyncStatus('ok', '已從雲端還原', `還原時間: ${now}`);
+    renderCalendar(); renderTodos(); renderEvents();
+    alert(`✓ 資料已從 JSONBin 還原\n同步時間: ${remote.syncAt || '未知'}`);
+
   } catch(e) {
     updateSyncStatus('err', '還原失敗', e.message);
     alert('❌ 還原失敗：' + e.message);
   }
 }
-function copyGasCode() {
-  navigator.clipboard.writeText(GAS_CODE).then(()=>alert('✓ 已複製 Apps Script 程式碼'));
-}
+function copyGasCode() { alert("此版本使用 JSONBin.io，不需要 Apps Script"); }
 function initSyncUI() {
-  const url = getGasUrl();
-  const input = document.getElementById('gas-url-input');
-  if (input) input.value = url;
+  const { key, bin } = getJbConfig();
+  const keyInput = document.getElementById('jb-key-input');
+  const binInput = document.getElementById('jb-bin-input');
+  if (keyInput) keyInput.value = key ? '•'.repeat(20) : '';
+  if (binInput) binInput.value = bin;
   const lastSync = localStorage.getItem('cat_last_sync');
-  const codeBlock = document.getElementById('gas-code-block');
-  if (codeBlock) codeBlock.textContent = GAS_CODE;
-  if (url) {
-    updateSyncStatus('ok', '已設定', lastSync ? `上次同步: ${lastSync}` : '尚未同步');
+  if (key) {
+    updateSyncStatus('ok', '設定已存在', lastSync ? `上次: ${lastSync}` : bin ? `Bin: ${bin}` : '尚未同步');
   } else {
-    updateSyncStatus('none', '尚未設定', '設定 GAS URL 以啟用雲端備份');
+    updateSyncStatus('none', '尚未設定', '請填入 JSONBin Master Key');
   }
 }
 
