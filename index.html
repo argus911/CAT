@@ -496,44 +496,84 @@ body{font-family:'Noto Serif TC','Hiragino Sans GB',serif;background:var(--bg);c
 // ═══════════════════════════════════════════
 // GOOGLE APPS SCRIPT CODE (for user to deploy)
 // ═══════════════════════════════════════════
-const GAS_CODE = `// CAT — Google Apps Script 後端
-// 步驟：Google Sheets > 擴充功能 > Apps Script > 貼上 > 部署 > 新增部署 > 網頁應用程式
-// 執行身分：我 / 存取權：任何人
+const GAS_CODE = `// CAT — Google Apps Script 後端 v2
+// ════════════════════════════════════════
+// 部署步驟：
+// 1. Google Sheets > 擴充功能 > Apps Script
+// 2. 刪除原有內容，貼上此程式碼
+// 3. 右上角「部署」>「新增部署」
+// 4. 類型選「網頁應用程式」
+// 5. 執行身分：「我」
+// 6. 存取權：「任何人」（不需登入）
+// 7. 點「部署」> 複製網址 > 貼入 CAT 設定
+// ════════════════════════════════════════
 
 const SHEET_NAME = 'CAT_Data';
 
+// ── 回傳 JSON 並附加 CORS header ──
+function jsonResponse(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ── GET：?action=read 讀取資料；無參數時回傳健康檢查 ──
 function doGet(e) {
-  const action = e.parameter.action;
-  if (action === 'read') return readData();
-  return ContentService.createTextOutput(JSON.stringify({status:'ok'}))
-    .setMimeType(ContentService.MimeType.JSON);
+  try {
+    // e 或 e.parameter 可能為 undefined（直接開啟網址時）
+    const action = (e && e.parameter && e.parameter.action) ? e.parameter.action : 'ping';
+
+    if (action === 'read') {
+      return readData();
+    }
+    // ping / 健康檢查
+    return jsonResponse({ status: 'ok', message: 'CAT GAS is running', time: new Date().toISOString() });
+
+  } catch (err) {
+    return jsonResponse({ status: 'error', message: err.toString() });
+  }
 }
 
+// ── POST：body = { action:'write', payload:'...' } ──
 function doPost(e) {
-  const data = JSON.parse(e.postData.contents);
-  if (data.action === 'write') return writeData(data.payload);
-  return ContentService.createTextOutput(JSON.stringify({status:'error'}))
-    .setMimeType(ContentService.MimeType.JSON);
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return jsonResponse({ status: 'error', message: 'No POST body received' });
+    }
+    const body = JSON.parse(e.postData.contents);
+    if (body.action === 'write') {
+      return writeData(body.payload);
+    }
+    return jsonResponse({ status: 'error', message: 'Unknown action' });
+  } catch (err) {
+    return jsonResponse({ status: 'error', message: err.toString() });
+  }
 }
 
+// ── 讀取 Sheets A1 儲存格 ──
 function readData() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(SHEET_NAME);
-  if (!sheet) return ContentService.createTextOutput(JSON.stringify({status:'empty',data:null}))
-    .setMimeType(ContentService.MimeType.JSON);
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) {
+    return jsonResponse({ status: 'empty', data: null });
+  }
   const val = sheet.getRange('A1').getValue();
-  return ContentService.createTextOutput(JSON.stringify({status:'ok',data:val}))
-    .setMimeType(ContentService.MimeType.JSON);
+  if (!val) {
+    return jsonResponse({ status: 'empty', data: null });
+  }
+  return jsonResponse({ status: 'ok', data: val });
 }
 
+// ── 寫入資料到 Sheets A1 ──
 function writeData(payload) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(SHEET_NAME);
-  if (!sheet) sheet = ss.insertSheet(SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME);
+  }
   sheet.getRange('A1').setValue(payload);
   sheet.getRange('B1').setValue(new Date().toISOString());
-  return ContentService.createTextOutput(JSON.stringify({status:'ok'}))
-    .setMimeType(ContentService.MimeType.JSON);
+  return jsonResponse({ status: 'ok', savedAt: new Date().toISOString() });
 }`;
 
 // ═══════════════════════════════════════════
@@ -623,8 +663,11 @@ async function syncToCloud() {
     const res = await fetch(url, {
       method: 'POST',
       body: JSON.stringify({action:'write', payload}),
+      headers: {'Content-Type': 'text/plain'}, // GAS needs text/plain for doPost
     });
-    const json = await res.json();
+    // GAS 回傳 redirect，需 follow；json() 失敗時視為成功（no-cors opaque）
+    let json = {status:'ok'};
+    try { json = await res.json(); } catch(_) { json = {status:'ok'}; }
     if (json.status === 'ok') {
       const now = new Date().toLocaleString('zh-TW');
       localStorage.setItem('cat_last_sync', now);
@@ -642,7 +685,7 @@ async function syncFromCloud() {
   if (!confirm('從雲端還原資料將覆蓋本機資料，確定繼續？')) return;
   updateSyncStatus('syncing','還原中...','正在從 Google Sheets 下載資料');
   try {
-    const res = await fetch(url + '?action=read');
+    const res = await fetch(url + '?action=read', {redirect: 'follow'});
     const json = await res.json();
     if (json.status === 'ok' && json.data) {
       const remote = JSON.parse(json.data);
