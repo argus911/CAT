@@ -497,16 +497,18 @@ body{font-family:'Noto Serif TC','Hiragino Sans GB',serif;background:var(--bg);c
 // ═══════════════════════════════════════════
 // GOOGLE APPS SCRIPT CODE (for user to deploy)
 // ═══════════════════════════════════════════
-const GAS_CODE = `// CAT — Google Apps Script 後端 v3
+const GAS_CODE = `// CAT — Google Apps Script 後端 v4
 // ════════════════════════════════════════
 // 部署步驟：
 // 1. Google Sheets > 擴充功能 > Apps Script
-// 2. 刪除原有內容，貼上此程式碼
+// 2. 刪除原有內容，貼上此程式碼（全選→貼上）
 // 3. 右上角「部署」>「新增部署」
-// 4. 類型選「網頁應用程式」
-// 5. 執行身分：「我」
-// 6. 存取權：「任何人」（不需登入）
-// 7. 點「部署」> 複製網址 > 貼入 CAT 設定
+//    類型：網頁應用程式
+//    執行身分：我
+//    存取權：任何人（不需登入）
+// 4. 點「部署」→ 複製網址 → 貼入 CAT 設定
+// ★ 若已部署過：「部署」>「管理部署」> 鉛筆圖示
+//    > 版本選「新版本」> 部署（URL 不變）
 // ════════════════════════════════════════
 
 const SHEET_NAME = 'CAT_Data';
@@ -517,27 +519,54 @@ function jsonOut(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// doGet 處理讀取與 preflight
+// ── doGet：處理讀取(read) 與 GET寫入(write) ──
 function doGet(e) {
   try {
     const action = (e && e.parameter && e.parameter.action)
       ? e.parameter.action : 'ping';
 
+    // ── 讀取資料 ──
     if (action === 'read') {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
       const sheet = ss.getSheetByName(SHEET_NAME);
       if (!sheet) return jsonOut({ status: 'empty', data: null });
       const val = sheet.getRange('A1').getValue();
-      return jsonOut({ status: 'ok', data: val || null });
+      if (!val) return jsonOut({ status: 'empty', data: null });
+      return jsonOut({ status: 'ok', data: String(val) });
     }
 
-    return jsonOut({ status: 'ok', message: 'CAT GAS v3 running', time: new Date().toISOString() });
+    // ── GET 寫入（data 以 base64 傳入，繞過 CORS POST 限制）──
+    if (action === 'write') {
+      const b64 = e.parameter.data || '';
+      if (!b64) return jsonOut({ status: 'error', message: 'No data param' });
+
+      // base64 decode
+      const decoded = Utilities.newBlob(
+        Utilities.base64Decode(b64)
+      ).getDataAsString();
+
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      let sheet = ss.getSheetByName(SHEET_NAME);
+      if (!sheet) sheet = ss.insertSheet(SHEET_NAME);
+
+      sheet.getRange('A1').setValue(decoded);
+      sheet.getRange('B1').setValue(new Date().toISOString());
+      return jsonOut({ status: 'ok', savedAt: new Date().toISOString() });
+    }
+
+    // ── 健康檢查 ping ──
+    return jsonOut({
+      status: 'ok',
+      message: 'CAT GAS v4 running',
+      time: new Date().toISOString()
+    });
+
   } catch(err) {
     return jsonOut({ status: 'error', message: err.toString() });
   }
 }
 
-// doPost 處理寫入
+// ── doPost：保留相容性（非必要但保留）──
 function doPost(e) {
   try {
     if (!e || !e.postData || !e.postData.contents) {
@@ -547,14 +576,11 @@ function doPost(e) {
     if (body.action !== 'write') {
       return jsonOut({ status: 'error', message: 'Unknown action' });
     }
-
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     let sheet = ss.getSheetByName(SHEET_NAME);
     if (!sheet) sheet = ss.insertSheet(SHEET_NAME);
-
     sheet.getRange('A1').setValue(body.payload);
     sheet.getRange('B1').setValue(new Date().toISOString());
-
     return jsonOut({ status: 'ok', savedAt: new Date().toISOString() });
   } catch(err) {
     return jsonOut({ status: 'error', message: err.toString() });
@@ -637,61 +663,76 @@ async function syncToCloud() {
   const url = getGasUrl();
   if (!url) { alert('請先在設定頁面填入 Google Apps Script URL'); switchView('settings'); return; }
   updateSyncStatus('syncing','同步中...','正在上傳資料到 Google Sheets');
+
   const payload = JSON.stringify({
-    events: JSON.parse(localStorage.getItem('cat_events')||'[]'),
-    todos: JSON.parse(localStorage.getItem('cat_todos')||'[]'),
+    events:           JSON.parse(localStorage.getItem('cat_events')||'[]'),
+    todos:            JSON.parse(localStorage.getItem('cat_todos')||'[]'),
     importedHolidays: JSON.parse(localStorage.getItem('cat_imported_holidays')||'{}'),
-    theme: localStorage.getItem('cat_theme')||'light',
-    syncAt: new Date().toISOString()
+    theme:            localStorage.getItem('cat_theme')||'light',
+    syncAt:           new Date().toISOString()
   });
+
   try {
-    // GAS CORS workaround: use no-cors (opaque response) for write
-    // We assume success if no network error is thrown
-    await fetch(url, {
-      method: 'POST',
-      mode: 'no-cors',
-      body: JSON.stringify({action:'write', payload}),
-      headers: {'Content-Type': 'text/plain'},
-    });
-    // no-cors returns opaque response, can't read status — treat as success
-    { const json = {status:'ok'};
+    // ── GAS CORS solution: encode payload as base64 and send via GET ──
+    // GAS doGet allows cross-origin reads; we pass data as a URL param.
+    // btoa/atob handles standard base64; encodeURIComponent makes it URL-safe.
+    const b64 = btoa(unescape(encodeURIComponent(payload)));
+    const getUrl = url + '?action=write&data=' + encodeURIComponent(b64);
+
+    const res = await fetch(getUrl, { method: 'GET', redirect: 'follow' });
+    const text = await res.text();
+    let json = { status: 'ok' };
+    try { json = JSON.parse(text); } catch(_) {}
+
     if (json.status === 'ok') {
       const now = new Date().toLocaleString('zh-TW');
       localStorage.setItem('cat_last_sync', now);
-      updateSyncStatus('ok','已同步至雲端',`上次: ${now}`);
+      updateSyncStatus('ok', '已同步至雲端', `上次: ${now}`);
       alert('✓ 資料已上傳至 Google Sheets');
-    } }
+    } else {
+      throw new Error(json.message || 'GAS 回傳錯誤');
+    }
   } catch(e) {
-    updateSyncStatus('err','同步失敗','請確認 URL 是否正確，或網路連線狀態');
-    alert('❌ 同步失敗：' + e.message);
+    updateSyncStatus('err', '同步失敗', e.message);
+    alert('❌ 同步失敗：' + e.message + '\n\n請確認 GAS URL 正確且已重新部署');
   }
 }
 async function syncFromCloud() {
   const url = getGasUrl();
   if (!url) { alert('請先在設定頁面填入 Google Apps Script URL'); return; }
   if (!confirm('從雲端還原資料將覆蓋本機資料，確定繼續？')) return;
-  updateSyncStatus('syncing','還原中...','正在從 Google Sheets 下載資料');
+  updateSyncStatus('syncing', '還原中...', '正在從 Google Sheets 下載資料');
   try {
-    // GAS read: use regular fetch with redirect follow; CORS allowed for GET on GAS
-    const res = await fetch(url + '?action=read', {
-      method: 'GET',
-      redirect: 'follow',
-    });
+    const res = await fetch(url + '?action=read', { method: 'GET', redirect: 'follow' });
     const text = await res.text();
     const json = JSON.parse(text);
+
     if (json.status === 'ok' && json.data) {
-      const remote = JSON.parse(json.data);
-      if (remote.events) localStorage.setItem('cat_events', JSON.stringify(remote.events));
-      if (remote.todos) localStorage.setItem('cat_todos', JSON.stringify(remote.todos));
-      if (remote.importedHolidays) localStorage.setItem('cat_imported_holidays', JSON.stringify(remote.importedHolidays));
-      if (remote.theme) applyTheme(remote.theme);
+      // data might be raw JSON string or base64 — handle both
+      let remote;
+      try {
+        remote = JSON.parse(json.data);
+      } catch(_) {
+        // try base64 decode
+        remote = JSON.parse(decodeURIComponent(escape(atob(json.data))));
+      }
+      if (remote.events)           localStorage.setItem('cat_events',             JSON.stringify(remote.events));
+      if (remote.todos)            localStorage.setItem('cat_todos',              JSON.stringify(remote.todos));
+      if (remote.importedHolidays) localStorage.setItem('cat_imported_holidays',  JSON.stringify(remote.importedHolidays));
+      if (remote.theme)            applyTheme(remote.theme);
       const now = new Date().toLocaleString('zh-TW');
-      updateSyncStatus('ok','已從雲端還原',`還原時間: ${now}`);
+      localStorage.setItem('cat_last_sync', now);
+      updateSyncStatus('ok', '已從雲端還原', `還原時間: ${now}`);
       renderCalendar(); renderTodos(); renderEvents();
       alert('✓ 資料已從 Google Sheets 還原');
-    } else { throw new Error('no data'); }
+    } else if (json.status === 'empty') {
+      alert('⚠ 雲端目前沒有備份資料，請先上傳備份');
+      updateSyncStatus('ok', '雲端無資料', '請先點「上傳備份」');
+    } else {
+      throw new Error(json.message || '無法解析雲端資料');
+    }
   } catch(e) {
-    updateSyncStatus('err','還原失敗','請確認 URL 是否正確');
+    updateSyncStatus('err', '還原失敗', e.message);
     alert('❌ 還原失敗：' + e.message);
   }
 }
