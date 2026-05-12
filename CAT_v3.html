@@ -352,7 +352,10 @@ body{font-family:'Noto Serif TC','Hiragino Sans GB',serif;background:var(--bg);c
   
   <!-- CLOUD SYNC CARD -->
   <div class="sync-card">
-    <div style="font-size:14px;font-weight:600;margin-bottom:10px;">☁ 雲端同步（JSONBin.io）</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="font-size:14px;font-weight:600;">☁ 雲端同步（JSONBin.io）</div>
+      <div id="auto-sync-badge" style="font-size:10px;font-family:'DM Mono',monospace;padding:3px 8px;border-radius:20px;background:var(--surface2);color:var(--ink3);">手動</div>
+    </div>
     <div class="sync-status-row">
       <div class="sync-dot" id="sync-dot"></div>
       <div>
@@ -564,6 +567,103 @@ function loadData() {
 }
 function saveData(key, data) {
   localStorage.setItem(key, JSON.stringify(data));
+  // Auto-sync: debounce upload 3 seconds after any data change
+  scheduleAutoSync();
+}
+
+// ── Auto-sync engine ──
+let _autoSyncTimer = null;
+let _isSyncing = false;
+
+function scheduleAutoSync() {
+  const { key, bin } = getJbConfig();
+  if (!key || !bin) return; // 未設定則跳過
+  clearTimeout(_autoSyncTimer);
+  _autoSyncTimer = setTimeout(() => autoSyncUpload(), 3000);
+}
+
+async function autoSyncUpload() {
+  if (_isSyncing) return;
+  const { key, bin } = getJbConfig();
+  if (!key || !bin) return;
+
+  _isSyncing = true;
+  updateSyncStatus('syncing', '自動同步中...', '正在儲存變更');
+
+  const payload = {
+    events:           JSON.parse(localStorage.getItem('cat_events')           || '[]'),
+    todos:            JSON.parse(localStorage.getItem('cat_todos')             || '[]'),
+    importedHolidays: JSON.parse(localStorage.getItem('cat_imported_holidays') || '{}'),
+    theme:            localStorage.getItem('cat_theme') || 'light',
+    syncAt:           new Date().toISOString(),
+    device:           navigator.userAgent.includes('Mobile') ? 'mobile' : 'desktop',
+  };
+
+  try {
+    const res = await fetch(`https://api.jsonbin.io/v3/b/${bin}`, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': key },
+      body:    JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+
+    const now = new Date().toLocaleString('zh-TW');
+    localStorage.setItem('cat_last_sync', now);
+    localStorage.setItem('cat_last_sync_at', payload.syncAt);
+    updateSyncStatus('ok', '已同步', `${now}`);
+  } catch(e) {
+    updateSyncStatus('err', '自動同步失敗', e.message);
+  } finally {
+    _isSyncing = false;
+  }
+}
+
+async function autoSyncDownload(showAlert) {
+  const { key, bin } = getJbConfig();
+  if (!key || !bin) return false;
+
+  try {
+    const res = await fetch(`https://api.jsonbin.io/v3/b/${bin}/latest`, {
+      headers: { 'X-Master-Key': key },
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    const remote = data.record;
+    if (!remote || !remote.syncAt) return false;
+
+    // Compare timestamps — only pull if remote is newer
+    const localSyncAt  = localStorage.getItem('cat_last_sync_at') || '1970-01-01T00:00:00.000Z';
+    const remoteSyncAt = remote.syncAt;
+
+    if (remoteSyncAt <= localSyncAt) {
+      if (showAlert) {
+        const now = new Date().toLocaleString('zh-TW');
+        updateSyncStatus('ok', '資料已是最新', `本機: ${new Date(localSyncAt).toLocaleString('zh-TW')}`);
+      }
+      return false; // already up-to-date
+    }
+
+    // Remote is newer — apply
+    if (remote.events)           localStorage.setItem('cat_events',            JSON.stringify(remote.events));
+    if (remote.todos)            localStorage.setItem('cat_todos',             JSON.stringify(remote.todos));
+    if (remote.importedHolidays) localStorage.setItem('cat_imported_holidays', JSON.stringify(remote.importedHolidays));
+    if (remote.theme)            applyTheme(remote.theme);
+
+    const now = new Date().toLocaleString('zh-TW');
+    localStorage.setItem('cat_last_sync', now);
+    localStorage.setItem('cat_last_sync_at', remoteSyncAt);
+
+    updateSyncStatus('ok', '已從雲端更新', `雲端: ${new Date(remoteSyncAt).toLocaleString('zh-TW')}`);
+    renderCalendar(); renderTodos(); renderEvents();
+
+    if (showAlert) alert(`✓ 已同步雲端最新資料\n更新時間: ${new Date(remoteSyncAt).toLocaleString('zh-TW')}`);
+    return true;
+
+  } catch(e) {
+    updateSyncStatus('err', '拉取失敗', e.message);
+    return false;
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -581,8 +681,25 @@ function saveJbConfig() {
   if (!key) { alert('請填入 Master Key'); return; }
   localStorage.setItem('cat_jb_key', key);
   if (bin) localStorage.setItem('cat_jb_bin', bin);
-  updateSyncStatus('ok', '設定已儲存', bin ? `Bin: ${bin}` : '首次上傳將自動建立 Bin');
-  alert('✓ 設定已儲存，請點「上傳備份」測試');
+  const hasBin = bin || localStorage.getItem('cat_jb_bin');
+  updateSyncStatus('ok', hasBin ? '自動同步已啟用' : '設定已儲存', hasBin ? `Bin: ${hasBin}` : '首次上傳將自動建立 Bin');
+  updateHeaderSyncDot();
+  updateAutoSyncBadge(!!hasBin);
+  alert('✓ 設定已儲存' + (hasBin ? '，自動同步已啟用' : '，請點「上傳備份」建立 Bin'));
+}
+
+function updateAutoSyncBadge(active) {
+  const badge = document.getElementById('auto-sync-badge');
+  if (!badge) return;
+  if (active) {
+    badge.textContent = '⚡ 自動同步';
+    badge.style.background = 'rgba(39,174,96,0.15)';
+    badge.style.color = 'var(--todo-done)';
+  } else {
+    badge.textContent = '手動';
+    badge.style.background = 'var(--surface2)';
+    badge.style.color = 'var(--ink3)';
+  }
 }
 function updateSyncStatus(state, label, sub) {
   const dot = document.getElementById('sync-dot');
@@ -598,7 +715,7 @@ function updateSyncStatus(state, label, sub) {
 async function syncToCloud() {
   const { key, bin } = getJbConfig();
   if (!key) { alert('請先在設定頁填入 JSONBin Master Key'); switchView('settings'); return; }
-  updateSyncStatus('syncing', '同步中...', '正在上傳至 JSONBin');
+  updateSyncStatus('syncing', '上傳中...', '正在強制上傳所有資料');
 
   const payload = {
     events:           JSON.parse(localStorage.getItem('cat_events')           || '[]'),
@@ -606,13 +723,14 @@ async function syncToCloud() {
     importedHolidays: JSON.parse(localStorage.getItem('cat_imported_holidays') || '{}'),
     theme:            localStorage.getItem('cat_theme') || 'light',
     syncAt:           new Date().toISOString(),
+    device:           navigator.userAgent.includes('Mobile') ? 'mobile' : 'desktop',
   };
 
   try {
-    let res, data;
+    let res, data, targetBin = bin;
 
     if (!bin) {
-      // ── 首次：建立新 Bin ──
+      // 首次：建立新 Bin
       res = await fetch('https://api.jsonbin.io/v3/b', {
         method:  'POST',
         headers: {
@@ -626,20 +744,16 @@ async function syncToCloud() {
       data = await res.json();
       if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
 
-      const newBin = data.metadata.id;
-      localStorage.setItem('cat_jb_bin', newBin);
-      // 更新 UI 欄位
+      targetBin = data.metadata.id;
+      localStorage.setItem('cat_jb_bin', targetBin);
       const binInput = document.getElementById('jb-bin-input');
-      if (binInput) binInput.value = newBin;
+      if (binInput) binInput.value = targetBin;
     } else {
-      // ── 更新既有 Bin ──
+      // 更新既有 Bin
       res = await fetch(`https://api.jsonbin.io/v3/b/${bin}`, {
         method:  'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Master-Key': key,
-        },
-        body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'application/json', 'X-Master-Key': key },
+        body:    JSON.stringify(payload),
       });
       data = await res.json();
       if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
@@ -647,46 +761,47 @@ async function syncToCloud() {
 
     const now = new Date().toLocaleString('zh-TW');
     localStorage.setItem('cat_last_sync', now);
-    const currentBin = localStorage.getItem('cat_jb_bin');
-    updateSyncStatus('ok', '已同步至雲端', `上次: ${now}`);
-    alert(`✓ 資料已上傳至 JSONBin\nBin ID: ${currentBin}\n（請記下此 ID 供其他裝置使用）`);
+    localStorage.setItem('cat_last_sync_at', payload.syncAt);
+    updateSyncStatus('ok', '上傳成功', `上次: ${now}`);
+    alert(`✓ 資料已上傳至 JSONBin\nBin ID: ${targetBin}`);
 
   } catch(e) {
     updateSyncStatus('err', '上傳失敗', e.message);
-    alert('❌ 上傳失敗：' + e.message + '\n\n請確認 Master Key 是否正確');
+    alert('❌ 上傳失敗：' + e.message);
   }
 }
 async function syncFromCloud() {
   const { key, bin } = getJbConfig();
   if (!key) { alert('請先在設定頁填入 JSONBin Master Key'); return; }
-  if (!bin) { alert('請先填入 Bin ID（從上傳裝置複製）'); return; }
-  if (!confirm('從雲端還原資料將覆蓋本機資料，確定繼續？')) return;
-  updateSyncStatus('syncing', '還原中...', '正在從 JSONBin 下載');
+  if (!bin)  { alert('請先填入 Bin ID'); return; }
+  updateSyncStatus('syncing', '拉取中...', '正在從雲端下載');
+  const ok = await autoSyncDownload(true);
+  if (!ok) {
+    // Force pull regardless of timestamp
+    try {
+      const res = await fetch(`https://api.jsonbin.io/v3/b/${bin}/latest`, {
+        headers: { 'X-Master-Key': key },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+      const remote = data.record;
+      if (!remote) throw new Error('Bin 內容為空');
 
-  try {
-    const res = await fetch(`https://api.jsonbin.io/v3/b/${bin}/latest`, {
-      headers: { 'X-Master-Key': key },
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+      if (remote.events)           localStorage.setItem('cat_events',            JSON.stringify(remote.events));
+      if (remote.todos)            localStorage.setItem('cat_todos',             JSON.stringify(remote.todos));
+      if (remote.importedHolidays) localStorage.setItem('cat_imported_holidays', JSON.stringify(remote.importedHolidays));
+      if (remote.theme)            applyTheme(remote.theme);
 
-    const remote = data.record;
-    if (!remote) throw new Error('Bin 內容為空');
-
-    if (remote.events)           localStorage.setItem('cat_events',            JSON.stringify(remote.events));
-    if (remote.todos)            localStorage.setItem('cat_todos',             JSON.stringify(remote.todos));
-    if (remote.importedHolidays) localStorage.setItem('cat_imported_holidays', JSON.stringify(remote.importedHolidays));
-    if (remote.theme)            applyTheme(remote.theme);
-
-    const now = new Date().toLocaleString('zh-TW');
-    localStorage.setItem('cat_last_sync', now);
-    updateSyncStatus('ok', '已從雲端還原', `還原時間: ${now}`);
-    renderCalendar(); renderTodos(); renderEvents();
-    alert(`✓ 資料已從 JSONBin 還原\n同步時間: ${remote.syncAt || '未知'}`);
-
-  } catch(e) {
-    updateSyncStatus('err', '還原失敗', e.message);
-    alert('❌ 還原失敗：' + e.message);
+      const now = new Date().toLocaleString('zh-TW');
+      localStorage.setItem('cat_last_sync', now);
+      if (remote.syncAt) localStorage.setItem('cat_last_sync_at', remote.syncAt);
+      updateSyncStatus('ok', '還原成功', `時間: ${now}`);
+      renderCalendar(); renderTodos(); renderEvents();
+      alert(`✓ 資料已從 JSONBin 還原`);
+    } catch(e) {
+      updateSyncStatus('err', '還原失敗', e.message);
+      alert('❌ 還原失敗：' + e.message);
+    }
   }
 }
 function copyGasCode() { alert("此版本使用 JSONBin.io，不需要 Apps Script"); }
@@ -697,10 +812,14 @@ function initSyncUI() {
   if (keyInput) keyInput.value = key ? '•'.repeat(20) : '';
   if (binInput) binInput.value = bin;
   const lastSync = localStorage.getItem('cat_last_sync');
-  if (key) {
-    updateSyncStatus('ok', '設定已存在', lastSync ? `上次: ${lastSync}` : bin ? `Bin: ${bin}` : '尚未同步');
+  if (key && bin) {
+    updateSyncStatus('ok', '自動同步已啟用', lastSync ? `上次: ${lastSync}` : `Bin: ${bin}`);
+    // 進入設定頁時自動檢查雲端是否有新資料
+    autoSyncDownload(false);
+  } else if (key) {
+    updateSyncStatus('ok', '設定已存在 — 需填 Bin ID', '請上傳一次備份以建立 Bin ID');
   } else {
-    updateSyncStatus('none', '尚未設定', '請填入 JSONBin Master Key');
+    updateSyncStatus('none', '尚未設定', '請填入 JSONBin Master Key 啟用自動同步');
   }
 }
 
@@ -1292,6 +1411,39 @@ function init(){
   renderCalendar();
   renderDayPanel(state.selectedDate.y,state.selectedDate.m,state.selectedDate.d);
   document.getElementById('fab').classList.add('hidden');
+
+  // ── Auto-sync on startup: pull from cloud if newer ──
+  setTimeout(() => autoSyncDownload(false), 1500);
+
+  // ── Auto-sync on visibility: pull when app comes to foreground ──
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      // Throttle: only pull if last pull was >60 seconds ago
+      const last = parseInt(localStorage.getItem('cat_last_pull_ms') || '0');
+      if (Date.now() - last > 60000) {
+        localStorage.setItem('cat_last_pull_ms', Date.now());
+        autoSyncDownload(false);
+      }
+    }
+  });
+
+  // ── Sync status indicator in header ──
+  updateHeaderSyncDot();
+}
+
+function updateHeaderSyncDot() {
+  const { key, bin } = getJbConfig();
+  const btn = document.getElementById('sync-indicator');
+  if (!btn) return;
+  if (key && bin) {
+    btn.textContent = '☁';
+    btn.title = '自動同步已啟用';
+    btn.style.color = 'var(--todo-done)';
+  } else {
+    btn.textContent = '☁';
+    btn.title = '尚未設定雲端同步';
+    btn.style.color = 'var(--ink3)';
+  }
 }
 init();
 </script>
