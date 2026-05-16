@@ -269,6 +269,8 @@ body{font-family:'Noto Serif TC','Hiragino Sans GB',serif;background:var(--bg);c
 .fab.hidden{display:none;}
 .empty-state{text-align:center;padding:28px 20px;color:var(--ink3);font-size:13px;}
 .empty-icon{font-size:30px;margin-bottom:8px;}
+.btn-icon.edit{background:rgba(45,74,122,0.08);color:var(--accent);}
+.btn-icon.edit:active{background:rgba(45,74,122,0.18);}
 
 /* QUICK-ADD SHEET */
 .qa-date-header{font-size:17px;font-weight:600;margin-bottom:6px;}
@@ -1022,6 +1024,8 @@ const state = {
   year: new Date().getFullYear(), month: new Date().getMonth()+1,
   selectedDate: null, currentView: 'calendar',
   selectedEventType: 'holiday', repeatYearly: true,
+  editingEventId: null, editingTodoId: null,
+  quickAddDate: null,
 };
 
 // Compute multi-day span colors for a month (for rendering bars)
@@ -1341,12 +1345,33 @@ function renderTodos(){
     const startStr=t.startDate?t.startDate.slice(5).replace('-','/'):'';
     const endStr=t.endDate?t.endDate.slice(5).replace('-','/'):'';
     const dateDisplay=startStr&&endStr&&startStr!==endStr?`${startStr} → ${endStr}`:endStr||startStr;
-    item.innerHTML=`<div class="todo-check" onclick="toggleTodo('${t.id}')">${t.done?'✓':''}</div><div class="todo-content"><div class="todo-text">${t.text}</div><div class="todo-meta"><span class="priority-badge ${t.priority}">${pLabels[t.priority]||'中'}優先</span>${dateDisplay?`<span>${dateDisplay}</span>`:''}</div></div><button class="btn-icon" onclick="deleteTodo('${t.id}')" style="color:var(--holiday)">✕</button>`;
+    item.innerHTML=`
+      <div class="todo-check" onclick="toggleTodo('${t.id}')">${t.done?'✓':''}</div>
+      <div class="todo-content">
+        <div class="todo-text">${t.text}</div>
+        <div class="todo-meta">
+          <span class="priority-badge ${t.priority}">${pLabels[t.priority]||'中'}優先</span>
+          ${dateDisplay?`<span>${dateDisplay}</span>`:''}
+        </div>
+      </div>
+      <div style="display:flex;gap:5px;flex-shrink:0;">
+        <button class="btn-icon edit" onclick="editTodo('${t.id}')" title="編輯">✏️</button>
+        <button class="btn-icon" onclick="deleteTodo('${t.id}')" style="color:var(--holiday)" title="刪除">✕</button>
+      </div>`;
     list.appendChild(item);
   });
 }
 function toggleTodo(id){const{todos}=loadData();const t=todos.find(t=>t.id===id);if(t){t.done=!t.done;saveData('cat_todos',todos);renderTodos();renderCalendar();}}
-function deleteTodo(id){const{todos}=loadData();saveData('cat_todos',todos.filter(t=>t.id!==id));renderTodos();renderCalendar();}
+function deleteTodo(id){
+  if(!confirm('確定要刪除此待辦事項？')) return;
+  const{todos}=loadData();
+  saveData('cat_todos',todos.filter(t=>t.id!==id));
+  renderTodos();renderCalendar();
+}
+function editTodo(id){
+  if(state.currentView!=='todo') switchView('todo');
+  setTimeout(()=>openTodoModal(null, id), 50);
+}
 
 // ═══════════════════════════════════════════
 // EVENTS VIEW
@@ -1362,11 +1387,32 @@ function renderEvents(){
     const repeat=!e.year?'🔁 每年':'📌 '+e.year+'年';
     const startStr=e.startDate?e.startDate.slice(5).replace('-','/'):'';
     const endStr=e.endDate&&e.endDate!==e.startDate?'→'+e.endDate.slice(5).replace('-','/'):'';
-    card.innerHTML=`<div class="event-card-left"><div class="event-card-icon ${typeClasses[e.type]||''}">${typeIcons[e.type]||'📌'}</div><div><div class="event-card-title">${e.name}</div><div class="event-card-date">${startStr}${endStr} · ${repeat}${e.note?' · '+e.note:''}</div></div></div><button class="btn-icon" onclick="deleteEvent('${e.id}')" style="color:var(--holiday)">✕</button>`;
+    card.innerHTML=`
+      <div class="event-card-left">
+        <div class="event-card-icon ${typeClasses[e.type]||''}">${typeIcons[e.type]||'📌'}</div>
+        <div>
+          <div class="event-card-title">${e.name}</div>
+          <div class="event-card-date">${startStr}${endStr} · ${repeat}${e.note?' · '+e.note:''}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:5px;flex-shrink:0;">
+        <button class="btn-icon edit" onclick="editEvent('${e.id}')" title="編輯">✏️</button>
+        <button class="btn-icon" onclick="deleteEvent('${e.id}')" style="color:var(--holiday)" title="刪除">✕</button>
+      </div>`;
     list.appendChild(card);
   });
 }
-function deleteEvent(id){const{events}=loadData();saveData('cat_events',events.filter(e=>e.id!==id));renderEvents();renderCalendar();}
+function deleteEvent(id){
+  if(!confirm('確定要刪除此事件？')) return;
+  const{events}=loadData();
+  saveData('cat_events',events.filter(e=>e.id!==id));
+  renderEvents();renderCalendar();
+}
+function editEvent(id){
+  // Switch to events view first (if not already), then open modal
+  if(state.currentView!=='events') switchView('events');
+  setTimeout(()=>openEventModal(null, id), 50);
+}
 
 // ═══════════════════════════════════════════
 // MODALS
@@ -1387,8 +1433,8 @@ function openQuickAdd(y, m, d) {
   const evs   = getEventsForDate(y, m, d);
   const todos = getTodosForDate(y, m, d);
   const all   = [
-    ...evs.map(e => ({ text: e.name, type: e.type || 'custom' })),
-    ...todos.map(t => ({ text: t.text, type: 'todo', done: t.done })),
+    ...evs.map(e => ({ id: e.id, text: e.name, type: e.type || 'custom', isEvent: true, builtin: e.builtin||false })),
+    ...todos.map(t => ({ id: t.id, text: t.text, type: 'todo', done: t.done, isEvent: false, builtin: false })),
   ];
 
   if (all.length > 0) {
@@ -1401,10 +1447,14 @@ function openQuickAdd(y, m, d) {
     all.forEach(item => {
       const row = document.createElement('div');
       row.className = 'qa-existing-item';
+      const editBtn = item.isEvent
+        ? `<button class="btn-icon edit" onclick="closeModal('quick-add-modal');editEvent('${item.id}')" style="width:24px;height:24px;font-size:11px;" title="編輯">✏️</button>`
+        : `<button class="btn-icon edit" onclick="closeModal('quick-add-modal');editTodo('${item.id}')" style="width:24px;height:24px;font-size:11px;" title="編輯">✏️</button>`;
       row.innerHTML = `
         <div class="qa-existing-dot" style="background:${typeColors[item.type]||'var(--accent)'}"></div>
         <div class="qa-existing-text"${item.done?' style="text-decoration:line-through;opacity:0.5"':''}>${item.text}</div>
         <div class="qa-existing-type">${typeLabels[item.type]||'事件'}</div>
+        ${item.builtin?'':editBtn}
       `;
       container.appendChild(row);
     });
@@ -1427,45 +1477,102 @@ function openEventFromQA() {
   openEventModal(ds);
 }
 
-function openEventModal(prefillDate){
-  state.selectedEventType='holiday'; state.repeatYearly=true;
-  document.querySelectorAll('.type-tab').forEach(t=>t.classList.remove('active'));
-  document.querySelector('[data-type="holiday"]').classList.add('active');
-  document.getElementById('event-name').value='';
-  document.getElementById('event-start-date').value = prefillDate || '';
-  document.getElementById('event-end-date').value   = prefillDate || '';
-  document.getElementById('event-note').value='';
-  setRepeat(true);
-  // Update modal title to show date if prefilled
+function openEventModal(prefillDate, editId){
+  state.editingEventId = editId || null;
   const titleEl = document.querySelector('#event-modal .modal-title');
-  if (titleEl) {
-    if (prefillDate) {
-      const [y,m,d] = prefillDate.split('-').map(Number);
-      titleEl.textContent = `新增事件 — ${m}月${d}日`;
-    } else {
-      titleEl.textContent = '新增事件';
+  const saveBtnEl = document.querySelector('#event-modal .btn-primary');
+
+  if (editId) {
+    // ── EDIT MODE: pre-fill all fields ──
+    const {events} = loadData();
+    const ev = events.find(e => e.id === editId);
+    if (!ev) return;
+    state.selectedEventType = ev.type || 'custom';
+    state.repeatYearly = !ev.year;
+    document.querySelectorAll('.type-tab').forEach(t=>t.classList.remove('active'));
+    const tab = document.querySelector(`[data-type="${ev.type}"]`);
+    if (tab) tab.classList.add('active');
+    document.getElementById('event-name').value      = ev.name || '';
+    document.getElementById('event-start-date').value = ev.startDate || '';
+    document.getElementById('event-end-date').value   = ev.endDate !== ev.startDate ? (ev.endDate||'') : '';
+    document.getElementById('event-note').value       = ev.note || '';
+    setRepeat(!ev.year);
+    if (titleEl) titleEl.textContent = '編輯事件';
+    if (saveBtnEl) saveBtnEl.textContent = '儲存修改';
+  } else {
+    // ── NEW MODE ──
+    state.selectedEventType = 'holiday'; state.repeatYearly = true;
+    document.querySelectorAll('.type-tab').forEach(t=>t.classList.remove('active'));
+    document.querySelector('[data-type="holiday"]').classList.add('active');
+    document.getElementById('event-name').value       = '';
+    document.getElementById('event-start-date').value = prefillDate || '';
+    document.getElementById('event-end-date').value   = prefillDate || '';
+    document.getElementById('event-note').value       = '';
+    setRepeat(true);
+    if (titleEl) {
+      if (prefillDate) {
+        const [y,m,d] = prefillDate.split('-').map(Number);
+        titleEl.textContent = `新增事件 — ${m}月${d}日`;
+      } else {
+        titleEl.textContent = '新增事件';
+      }
     }
+    if (saveBtnEl) saveBtnEl.textContent = '儲存';
   }
   document.getElementById('event-modal').classList.add('open');
 }
-function openTodoModal(prefillDate){
-  document.getElementById('todo-text-input').value='';
-  document.getElementById('todo-start-date').value = prefillDate || '';
-  document.getElementById('todo-end-date').value   = prefillDate || '';
-  document.getElementById('todo-priority').value='medium';
-  // Update modal title to show date if prefilled
-  const titleEl = document.querySelector('#todo-modal .modal-title');
-  if (titleEl) {
-    if (prefillDate) {
-      const [y,m,d] = prefillDate.split('-').map(Number);
-      titleEl.textContent = `新增待辦 — ${m}月${d}日`;
-    } else {
-      titleEl.textContent = '新增待辦事項';
+function openTodoModal(prefillDate, editId){
+  state.editingTodoId = editId || null;
+  const titleEl  = document.querySelector('#todo-modal .modal-title');
+  const saveBtnEl = document.querySelector('#todo-modal .btn-primary');
+
+  if (editId) {
+    // ── EDIT MODE ──
+    const {todos} = loadData();
+    const t = todos.find(t => t.id === editId);
+    if (!t) return;
+    document.getElementById('todo-text-input').value  = t.text || '';
+    document.getElementById('todo-start-date').value  = t.startDate || '';
+    document.getElementById('todo-end-date').value    = t.endDate !== t.startDate ? (t.endDate||'') : (t.endDate||'');
+    document.getElementById('todo-priority').value    = t.priority || 'medium';
+    if (titleEl) titleEl.textContent = '編輯待辦事項';
+    if (saveBtnEl) saveBtnEl.textContent = '儲存修改';
+  } else {
+    // ── NEW MODE ──
+    document.getElementById('todo-text-input').value = '';
+    document.getElementById('todo-start-date').value = prefillDate || '';
+    document.getElementById('todo-end-date').value   = prefillDate || '';
+    document.getElementById('todo-priority').value   = 'medium';
+    if (titleEl) {
+      if (prefillDate) {
+        const [y,m,d] = prefillDate.split('-').map(Number);
+        titleEl.textContent = `新增待辦 — ${m}月${d}日`;
+      } else {
+        titleEl.textContent = '新增待辦事項';
+      }
     }
+    if (saveBtnEl) saveBtnEl.textContent = '儲存';
   }
   document.getElementById('todo-modal').classList.add('open');
 }
-function closeModal(id){document.getElementById(id).classList.remove('open');}
+function closeModal(id){
+  document.getElementById(id).classList.remove('open');
+  // Reset editing state and button labels when closing
+  if(id==='event-modal'){
+    state.editingEventId=null;
+    const btn=document.querySelector('#event-modal .btn-primary');
+    if(btn) btn.textContent='儲存';
+    const title=document.querySelector('#event-modal .modal-title');
+    if(title) title.textContent='新增事件';
+  }
+  if(id==='todo-modal'){
+    state.editingTodoId=null;
+    const btn=document.querySelector('#todo-modal .btn-primary');
+    if(btn) btn.textContent='儲存';
+    const title=document.querySelector('#todo-modal .modal-title');
+    if(title) title.textContent='新增待辦事項';
+  }
+}
 function selectEventType(type){state.selectedEventType=type;document.querySelectorAll('.type-tab').forEach(t=>t.classList.remove('active'));document.querySelector(`[data-type="${type}"]`).classList.add('active');}
 function setRepeat(yearly){state.repeatYearly=yearly;document.getElementById('repeat-yes').className='repeat-opt'+(yearly?' active':'');document.getElementById('repeat-no').className='repeat-opt'+(yearly?'':' active');}
 
@@ -1478,12 +1585,32 @@ function saveEvent(){
   const note=document.getElementById('event-note').value.trim();
   const start=strToDate(startDate);
   const{events}=loadData();
-  events.push({id:Date.now().toString(),type:state.selectedEventType,name,
-    startDate,endDate:endDate||startDate,
-    month:start.getMonth()+1,day:start.getDate(),
-    year:state.repeatYearly?null:start.getFullYear(),note});
+
+  if(state.editingEventId){
+    // ── UPDATE existing ──
+    const idx=events.findIndex(e=>e.id===state.editingEventId);
+    if(idx>-1){
+      events[idx]={
+        ...events[idx],
+        type:state.selectedEventType,name,
+        startDate,endDate:endDate||startDate,
+        month:start.getMonth()+1,day:start.getDate(),
+        year:state.repeatYearly?null:start.getFullYear(),note
+      };
+    }
+    state.editingEventId=null;
+  } else {
+    // ── NEW ──
+    events.push({id:Date.now().toString(),type:state.selectedEventType,name,
+      startDate,endDate:endDate||startDate,
+      month:start.getMonth()+1,day:start.getDate(),
+      year:state.repeatYearly?null:start.getFullYear(),note});
+  }
   saveData('cat_events',events);
   closeModal('event-modal'); renderCalendar(); renderEvents();
+  // Reset save button label
+  const saveBtnEl=document.querySelector('#event-modal .btn-primary');
+  if(saveBtnEl) saveBtnEl.textContent='儲存';
 }
 function saveTodo(){
   const text=document.getElementById('todo-text-input').value.trim();
@@ -1493,9 +1620,29 @@ function saveTodo(){
   if(endDate&&startDate&&endDate<startDate){alert('結束日期不能早於開始日期');return;}
   const priority=document.getElementById('todo-priority').value;
   const{todos}=loadData();
-  todos.push({id:Date.now().toString(),text,startDate:startDate||endDate,endDate:endDate||startDate,priority,done:false,created:new Date().toISOString()});
+
+  if(state.editingTodoId){
+    // ── UPDATE existing ──
+    const idx=todos.findIndex(t=>t.id===state.editingTodoId);
+    if(idx>-1){
+      todos[idx]={
+        ...todos[idx],
+        text,
+        startDate:startDate||endDate,
+        endDate:endDate||startDate,
+        priority
+      };
+    }
+    state.editingTodoId=null;
+  } else {
+    // ── NEW ──
+    todos.push({id:Date.now().toString(),text,startDate:startDate||endDate,endDate:endDate||startDate,priority,done:false,created:new Date().toISOString()});
+  }
   saveData('cat_todos',todos);
   closeModal('todo-modal'); renderTodos(); renderCalendar();
+  // Reset save button label
+  const saveBtnEl=document.querySelector('#todo-modal .btn-primary');
+  if(saveBtnEl) saveBtnEl.textContent='儲存';
 }
 function clearAll(){if(confirm('確定要清除所有本機資料？')){localStorage.removeItem('cat_events');localStorage.removeItem('cat_todos');localStorage.removeItem('cat_imported_holidays');renderCalendar();renderTodos();renderEvents();alert('✓ 已清除');}}
 
