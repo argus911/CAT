@@ -66,6 +66,15 @@ body{font-family:'Noto Serif TC','Hiragino Sans GB',serif;background:var(--bg);c
 .view{display:none;padding:14px;}
 .view.active{display:block;}
 
+/* SWIPE ANIMATION */
+.swipe-wrapper{overflow:hidden;position:relative;}
+.swipe-inner{transition:transform 0.28s cubic-bezier(0.35,0,0.25,1);}
+.swipe-inner.slide-left-enter{transform:translateX(100%);}
+.swipe-inner.slide-right-enter{transform:translateX(-100%);}
+.swipe-inner.slide-out-left{transform:translateX(-100%);}
+.swipe-inner.slide-out-right{transform:translateX(100%);}
+.swipe-inner.no-transition{transition:none !important;}
+
 /* CALENDAR GRID */
 .weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px;text-align:center;}
 .weekday-label{font-size:11px;font-family:'DM Mono',monospace;color:var(--ink3);padding:3px 0;}
@@ -328,13 +337,18 @@ body{font-family:'Noto Serif TC','Hiragino Sans GB',serif;background:var(--bg);c
 
 <!-- VIEWS -->
 <div class="view active" id="view-calendar">
-  <div class="weekdays">
-    <div class="weekday-label">日</div><div class="weekday-label">一</div>
-    <div class="weekday-label">二</div><div class="weekday-label">三</div>
-    <div class="weekday-label">四</div><div class="weekday-label">五</div>
-    <div class="weekday-label" style="color:#3498db">六</div>
+  <div class="swipe-wrapper" id="swipe-wrapper">
+    <div class="swipe-inner" id="swipe-inner">
+      <div class="weekdays">
+        <div class="weekday-label">日</div><div class="weekday-label">一</div>
+        <div class="weekday-label">二</div><div class="weekday-label">三</div>
+        <div class="weekday-label">四</div><div class="weekday-label">五</div>
+        <div class="weekday-label" style="color:#3498db">六</div>
+      </div>
+      <div class="calendar-grid" id="calendar-grid"></div>
+    </div>
   </div>
-  <div class="calendar-grid" id="calendar-grid"></div>
+  </div><!-- /swipe-wrapper -->
   <div class="legend">
     <div class="legend-item"><div class="legend-dot" style="background:var(--holiday)"></div>假日</div>
     <div class="legend-item"><div class="legend-dot" style="background:var(--birthday)"></div>生日</div>
@@ -1025,7 +1039,7 @@ const state = {
   selectedDate: null, currentView: 'calendar',
   selectedEventType: 'holiday', repeatYearly: true,
   editingEventId: null, editingTodoId: null,
-  quickAddDate: null,
+  quickAddDate: null, _animating: false,
 };
 
 // Compute multi-day span colors for a month (for rendering bars)
@@ -1251,10 +1265,59 @@ function renderDayPanel(y,m,d) {
 // ═══════════════════════════════════════════
 // YEAR NAVIGATION
 // ═══════════════════════════════════════════
-function prevMonth(){if(state.month===1){state.month=12;state.year--;}else state.month--;state.selectedDate=null;renderCalendar();}
-function nextMonth(){if(state.month===12){state.month=1;state.year++;}else state.month++;state.selectedDate=null;renderCalendar();}
-function prevYear(){state.year--;state.selectedDate=null;renderCalendar();}
-function nextYear(){state.year++;state.selectedDate=null;renderCalendar();}
+function prevMonth(){ navigateMonth('prev'); }
+function nextMonth(){ navigateMonth('next'); }
+
+function navigateMonth(dir) {
+  if (state._animating) return;
+  state._animating = true;
+
+  const inner = document.getElementById('swipe-inner');
+  if (!inner) {
+    // Fallback: no animation
+    if (dir === 'prev') { if(state.month===1){state.month=12;state.year--;}else state.month--; }
+    else { if(state.month===12){state.month=1;state.year++;}else state.month++; }
+    state.selectedDate = null; renderCalendar();
+    state._animating = false; return;
+  }
+
+  // Step 1: slide current content out
+  inner.classList.add('no-transition');
+  inner.classList.remove('slide-left-enter','slide-right-enter','slide-out-left','slide-out-right');
+
+  // Force reflow
+  inner.getBoundingClientRect();
+  inner.classList.remove('no-transition');
+
+  const outClass = dir === 'next' ? 'slide-out-left' : 'slide-out-right';
+  inner.classList.add(outClass);
+
+  // Step 2: after slide-out, update data and slide new content in
+  const DURATION = 280;
+  setTimeout(() => {
+    if (dir === 'prev') { if(state.month===1){state.month=12;state.year--;}else state.month--; }
+    else { if(state.month===12){state.month=1;state.year++;}else state.month++; }
+    state.selectedDate = null;
+    renderCalendar();
+
+    // Snap to enter position (no transition)
+    inner.classList.add('no-transition');
+    inner.classList.remove(outClass);
+    const enterClass = dir === 'next' ? 'slide-left-enter' : 'slide-right-enter';
+    inner.classList.add(enterClass);
+
+    inner.getBoundingClientRect(); // force reflow
+    inner.classList.remove('no-transition');
+
+    // Slide into place
+    requestAnimationFrame(() => {
+      inner.classList.remove(enterClass);
+      setTimeout(() => { state._animating = false; }, DURATION);
+    });
+  }, DURATION);
+}
+function prevYear(){ if(state._animating) return; state.year--; state.selectedDate=null; renderCalendar(); }
+function nextYear(){ if(state._animating) return; state.year++; state.selectedDate=null; renderCalendar(); }
 function goToday(){const n=new Date();state.year=n.getFullYear();state.month=n.getMonth()+1;state.selectedDate={y:state.year,m:state.month,d:n.getDate()};renderCalendar();renderDayPanel(state.year,state.month,n.getDate());}
 
 function openYearPicker() {
@@ -1704,6 +1767,57 @@ function init(){
 
   // ── Sync status indicator in header ──
   updateHeaderSyncDot();
+
+  // ── Touch swipe for calendar ──
+  initSwipe();
+}
+
+function initSwipe() {
+  const calView = document.getElementById('view-calendar');
+  if (!calView) return;
+
+  let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
+  let mouseStartX = 0, isDragging = false;
+
+  // ── Touch events (mobile) ──
+  calView.addEventListener('touchstart', e => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    touchStartTime = Date.now();
+  }, { passive: true });
+
+  calView.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    const dt = Date.now() - touchStartTime;
+    const absDx = Math.abs(dx), absDy = Math.abs(dy);
+
+    // Conditions: horizontal > 50px, horizontal > vertical, fast enough (<400ms)
+    if (absDx > 50 && absDx > absDy * 1.2 && dt < 400) {
+      if (dx < 0) navigateMonth('next');  // swipe left → next month
+      else        navigateMonth('prev');  // swipe right → prev month
+    }
+  }, { passive: true });
+
+  // ── Mouse drag (desktop) ──
+  calView.addEventListener('mousedown', e => {
+    // Only on calendar grid area, ignore buttons/modals
+    if (e.target.closest('button') || e.target.closest('.modal-overlay')) return;
+    mouseStartX = e.clientX;
+    isDragging = true;
+  });
+
+  calView.addEventListener('mouseup', e => {
+    if (!isDragging) return;
+    isDragging = false;
+    const dx = e.clientX - mouseStartX;
+    if (Math.abs(dx) > 60) {
+      if (dx < 0) navigateMonth('next');
+      else        navigateMonth('prev');
+    }
+  });
+
+  calView.addEventListener('mouseleave', () => { isDragging = false; });
 }
 
 function updateHeaderSyncDot() {
