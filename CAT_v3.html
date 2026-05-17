@@ -1182,26 +1182,36 @@ function createDayCell(y,m,d,otherMonth,isToday,spanMap) {
   const spans=(spanMap&&spanMap[ds])||[];
 
   if(!otherMonth) {
-    // ── Step 1: Collect ALL label items for this date ──
+    // ── Step 1: Collect ALL label items (deduplicated) ──
     const labelItems = [];
-    // From point events (single-day or same-day start/end)
+    const seenLabels = new Set(); // prevent duplicates
+
+    // Helper: add item only if not already added
+    function addLabel(label, cls) {
+      if (seenLabels.has(label)) return;
+      seenLabels.add(label);
+      labelItems.push({label, cls});
+    }
+
+    // Source A: events visible on this date (all, single-day or multi-day)
     evs.forEach(e => {
-      const isSingleDay = !e.endDate || e.endDate === e.startDate;
       const cls = e.type==='holiday'?'t-holiday':e.type==='birthday'?'t-birthday':'t-custom';
-      if (isSingleDay) labelItems.push({label: e.name, cls});
+      addLabel(e.name, cls);
     });
-    // From todos visible on this date
+
+    // Source B: todos visible on this date
     const todayTodos = getTodosForDate(y,m,d);
     todayTodos.forEach(t => {
-      const isSingleDay = !t.startDate || !t.endDate || t.startDate === t.endDate;
       const cls = t.done ? 't-done' : 't-todo';
-      if (isSingleDay) labelItems.push({label: t.text, cls});
+      addLabel(t.text, cls);
     });
-    // From span bars — add label on start day
+
+    // Source C: span bars — only add label if not already added from Source A/B
+    // (spans duplicate events/todos that are already included above)
     spans.forEach(sp => {
       if (sp.pos === 'start' || sp.pos === 'solo') {
         const spanCls = sp.cls==='c-holiday'?'t-holiday':sp.cls==='c-birthday'?'t-birthday':sp.cls==='c-todo'?'t-todo':sp.cls==='c-done'?'t-done':'t-custom';
-        labelItems.push({label: sp.label, cls: spanCls, isSpan: true});
+        addLabel(sp.label, spanCls); // seenLabels prevents duplicate
       }
     });
 
