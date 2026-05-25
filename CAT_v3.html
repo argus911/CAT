@@ -96,6 +96,9 @@ body{font-family:'Noto Serif TC','Hiragino Sans GB',serif;background:var(--bg);c
 .day-cell.today{background:var(--accent);color:white;box-shadow:0 3px 10px rgba(45,74,122,0.35);}
 .day-cell.selected{outline:2px solid var(--accent);outline-offset:1px;}
 .day-cell.holiday-bg{background:#fdf0ee;}
+.day-cell.makeup-bg{background:#fff8e8;border:1.5px dashed #e0a030;}
+[data-theme="dark"] .day-cell.makeup-bg,[data-theme="slate"] .day-cell.makeup-bg{background:#2a2010;border-color:#806020;}
+.day-tag.t-makeup{background:#fff0c0;color:#8a6000;font-weight:500;}
 [data-theme="dark"] .day-cell.holiday-bg,[data-theme="slate"] .day-cell.holiday-bg{background:#2e1a1a;}
 .day-cell.sunday .day-num{color:var(--holiday);}
 .day-cell.saturday .day-num{color:#3498db;}
@@ -365,6 +368,7 @@ body{font-family:'Noto Serif TC','Hiragino Sans GB',serif;background:var(--bg);c
     <div class="legend-item"><div class="legend-dot" style="background:#2d4a7a"></div>自訂事件</div>
     <div class="legend-item"><div class="legend-dot" style="background:#e67e22"></div>待辦事項</div>
     <div class="legend-item"><div class="legend-dot" style="background:#27ae60"></div>已完成</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#e0a030;border:1px dashed #a07010;"></div>補班日</div>
   </div>
   <div class="day-panel" id="day-panel">
     <div class="day-panel-header">
@@ -925,7 +929,7 @@ const LUNAR_HOLIDAYS = {
   2024:[{m:2,d:8,n:'除夕'},{m:2,d:9,n:'春節初一'},{m:2,d:10,n:'春節初二'},{m:2,d:11,n:'春節初三'},{m:4,d:4,n:'清明節'},{m:6,d:10,n:'端午節'},{m:9,d:17,n:'中秋節'}],
   2025:[{m:1,d:28,n:'除夕'},{m:1,d:29,n:'春節初一'},{m:1,d:30,n:'春節初二'},{m:1,d:31,n:'春節初三'},{m:4,d:4,n:'清明節'},{m:5,d:31,n:'端午節'},{m:10,d:6,n:'中秋節'}],
   2026:[{m:2,d:16,n:'除夕'},{m:2,d:17,n:'春節初一'},{m:2,d:18,n:'春節初二'},{m:2,d:19,n:'春節初三'},{m:4,d:5,n:'清明節'},{m:6,d:19,n:'端午節'},{m:9,d:25,n:'中秋節'}],
-  2027:[{m:2,d:5,n:'除夕'},{m:2,d:6,n:'春節初一'},{m:2,d:7,n:'春節初二'},{m:2,d:8,n:'春節初三'},{m:4,d:4,n:'清明節'},{m:6,d:9,n:'端午節'},{m:9,d:22,n:'中秋節'}],
+  2027:[{m:2,d:5,n:'除夕'},{m:2,d:6,n:'春節（初一）'},{m:2,d:7,n:'春節（初二）'},{m:2,d:8,n:'春節（初三）'},{m:4,d:4,n:'清明節'},{m:6,d:9,n:'端午節'},{m:9,d:15,n:'中秋節'}],
   2028:[{m:1,d:25,n:'除夕'},{m:1,d:26,n:'春節初一'},{m:1,d:27,n:'春節初二'},{m:1,d:28,n:'春節初三'},{m:4,d:4,n:'清明節'},{m:5,d:28,n:'端午節'},{m:10,d:3,n:'中秋節'}],
 };
 const OFFICIAL_HOLIDAYS = {
@@ -933,24 +937,25 @@ const OFFICIAL_HOLIDAYS = {
   2025:[{month:1,day:1,name:'元旦'},{month:1,day:27,name:'春節休假'},{month:1,day:28,name:'除夕'},{month:1,day:29,name:'春節初一'},{month:1,day:30,name:'春節初二'},{month:1,day:31,name:'春節初三'},{month:2,day:28,name:'和平紀念日'},{month:4,day:3,name:'兒童節補假'},{month:4,day:4,name:'兒童節'},{month:4,day:5,name:'清明節'},{month:5,day:1,name:'勞動節'},{month:5,day:30,name:'端午節補假'},{month:5,day:31,name:'端午節'},{month:10,day:6,name:'中秋節'},{month:10,day:10,name:'國慶日'}],
   2026:[{month:1,day:1,name:'元旦'},{month:2,day:16,name:'除夕'},{month:2,day:17,name:'春節初一'},{month:2,day:18,name:'春節初二'},{month:2,day:19,name:'春節初三'},{month:2,day:20,name:'春節初四'},{month:2,day:28,name:'和平紀念日'},{month:4,day:3,name:'兒童節補假'},{month:4,day:4,name:'兒童節'},{month:4,day:5,name:'清明節'},{month:5,day:1,name:'勞動節'},{month:6,day:19,name:'端午節'},{month:6,day:20,name:'端午節補假'},{month:9,day:25,name:'中秋節'},{month:10,day:10,name:'國慶日'}],
   2027:[
-    {month:1,day:1,name:'元旦'},
-    {month:2,day:5,name:'除夕'},
-    {month:2,day:6,name:'春節初一'},
-    {month:2,day:7,name:'春節初二'},
-    {month:2,day:8,name:'春節初三'},
-    {month:2,day:9,name:'春節彈性放假'},
-    {month:2,day:28,name:'和平紀念日'},
-    {month:3,day:1,name:'和平紀念日補假'},
-    {month:4,day:2,name:'兒童節補假'},
-    {month:4,day:3,name:'兒童節'},
-    {month:4,day:4,name:'清明節'},
-    {month:4,day:5,name:'清明節彈性放假'},
-    {month:5,day:1,name:'勞動節'},
-    {month:6,day:9,name:'端午節'},
-    {month:9,day:22,name:'中秋節'},
-    {month:9,day:23,name:'中秋節補假'},
-    {month:10,day:10,name:'國慶日'},
-    {month:10,day:11,name:'國慶日補假'},
+    {month:1, day:1,  name:'元旦',                type:'holiday'},
+    {month:2, day:5,  name:'除夕',                type:'holiday'},
+    {month:2, day:6,  name:'春節（初一）',         type:'holiday'},
+    {month:2, day:7,  name:'春節（初二）',         type:'holiday'},
+    {month:2, day:8,  name:'春節（初三）',         type:'holiday'},
+    {month:2, day:9,  name:'春節彈性放假',          type:'holiday'},
+    {month:2, day:27, name:'⚠ 補班日',            type:'makeup'},
+    {month:2, day:28, name:'和平紀念日',            type:'holiday'},
+    {month:3, day:1,  name:'和平紀念日補假',        type:'holiday'},
+    {month:4, day:2,  name:'兒童節彈性放假',        type:'holiday'},
+    {month:4, day:3,  name:'兒童節',               type:'holiday'},
+    {month:4, day:4,  name:'清明節',               type:'holiday'},
+    {month:4, day:5,  name:'清明節彈性放假',        type:'holiday'},
+    {month:4, day:17, name:'⚠ 補班日',            type:'makeup'},
+    {month:5, day:1,  name:'勞動節',               type:'holiday'},
+    {month:6, day:9,  name:'端午節',               type:'holiday'},
+    {month:9, day:15, name:'中秋節',               type:'holiday'},
+    {month:10,day:10, name:'國慶日',               type:'holiday'},
+    {month:10,day:11, name:'國慶日補假',            type:'holiday'},
   ],
   2028:[{month:1,day:1,name:'元旦'},{month:1,day:25,name:'除夕'},{month:1,day:26,name:'春節初一'},{month:1,day:27,name:'春節初二'},{month:1,day:28,name:'春節初三'},{month:2,day:28,name:'和平紀念日'},{month:4,day:4,name:'兒童節清明節'},{month:5,day:1,name:'勞動節'},{month:5,day:28,name:'端午節'},{month:10,day:3,name:'中秋節'},{month:10,day:10,name:'國慶日'}],
 };
@@ -1028,7 +1033,10 @@ function getEventsForDate(y,m,d) {
   // Lunar
   (LUNAR_HOLIDAYS[y]||[]).filter(h=>h.m===m&&h.d===d).forEach(h=>results.push({name:h.n,type:'holiday',builtin:true,startDate:ds,endDate:ds}));
   // Imported holidays
-  (importedHolidays[String(y)]||[]).filter(h=>h.month===m&&h.day===d).forEach(h=>results.push({...h,type:'holiday',builtin:true,startDate:ds,endDate:ds}));
+  (importedHolidays[String(y)]||[]).filter(h=>h.month===m&&h.day===d).forEach(h=>{
+    const entryType = h.type==='makeup' ? 'makeup' : 'holiday';
+    results.push({...h,type:entryType,builtin:true,startDate:ds,endDate:ds});
+  });
 
   // User events — check span
   events.forEach(e => {
@@ -1188,7 +1196,9 @@ function createDayCell(y,m,d,otherMonth,isToday,spanMap) {
 
   const evs=getEventsForDate(y,m,d);
   const hasHoliday=evs.some(e=>e.type==='holiday');
+  const hasMakeup=evs.some(e=>e.type==='makeup');
   if(hasHoliday&&!isToday) cell.classList.add('holiday-bg');
+  if(hasMakeup&&!isToday&&!hasHoliday) cell.classList.add('makeup-bg');
 
   const sel=state.selectedDate;
   if(sel&&sel.y===y&&sel.m===m&&sel.d===d&&!otherMonth) cell.classList.add('selected');
@@ -1214,7 +1224,10 @@ function createDayCell(y,m,d,otherMonth,isToday,spanMap) {
 
     // Source A: events visible on this date (all, single-day or multi-day)
     evs.forEach(e => {
-      const cls = e.type==='holiday'?'t-holiday':e.type==='birthday'?'t-birthday':'t-custom';
+      const cls = e.type==='holiday'?'t-holiday'
+               : e.type==='birthday'?'t-birthday'
+               : e.type==='makeup'?'t-makeup'
+               : 't-custom';
       addLabel(e.name, cls);
     });
 
@@ -1288,8 +1301,8 @@ function renderDayPanel(y,m,d) {
   const container=document.getElementById('panel-events');
   container.innerHTML='';
   if(evs.length===0&&todos.length===0){container.innerHTML='<div class="no-events">本日無特別事項</div>';return;}
-  const typeColors={holiday:'var(--holiday)',birthday:'var(--birthday)',custom:'var(--accent)'};
-  const typeLabels={holiday:'假日',birthday:'生日',custom:'事件'};
+  const typeColors={holiday:'var(--holiday)',birthday:'var(--birthday)',custom:'var(--accent)',makeup:'#e0a030'};
+  const typeLabels={holiday:'假日',birthday:'生日',custom:'事件',makeup:'補班日'};
   evs.forEach(e=>{
     const item=document.createElement('div'); item.className='event-item';
     const dateRange=e.endDate&&e.endDate!==e.startDate?`${e.startDate} ~ ${e.endDate}`:'';
