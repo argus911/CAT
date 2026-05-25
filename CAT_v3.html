@@ -458,9 +458,27 @@ body{font-family:'Noto Serif TC','Hiragino Sans GB',serif;background:var(--bg);c
 
   <div class="settings-section">
     <div class="settings-row"><div class="settings-row-label">🎨 外觀主題</div><button class="settings-row-btn" onclick="openThemeModal()">選擇主題</button></div>
-    <div class="settings-row"><div class="settings-row-label">🗓 匯入假日</div><button class="settings-row-btn" onclick="switchView('events')">前往匯入</button></div>
     <div class="settings-row"><div class="settings-row-label">🗑 清除所有資料</div><button class="settings-row-btn" onclick="clearAll()" style="color:var(--holiday)">清除</button></div>
   </div>
+
+  <!-- 匯入假日 (moved from events tab) -->
+  <p class="section-title">匯入台灣國定假日</p>
+  <div class="import-card" style="margin-bottom:14px;">
+    <div class="import-card-title">🗓 行政院人事行政總處官方行事曆</div>
+    <div class="import-card-sub">選擇年份後點匯入，自動加入假日標記</div>
+    <div class="import-year-row">
+      <select class="import-year-sel" id="import-year-sel2"></select>
+      <button class="btn btn-primary" style="flex:0 0 auto;padding:9px 14px;border-radius:10px;font-size:13px;" onclick="importHolidaysFromSettings()">匯入</button>
+    </div>
+    <div class="import-status" id="import-status2"></div>
+  </div>
+
+  <!-- 自訂事件管理 (moved from events tab) -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <p class="section-title" style="margin-bottom:0;">自訂事件管理</p>
+    <button class="btn-icon" onclick="openEventModal()" style="width:auto;padding:0 12px;font-size:12px;font-family:'DM Mono',monospace;color:var(--accent);">+ 新增</button>
+  </div>
+  <div class="events-list" id="events-list-settings"></div>
   <div class="settings-section">
     <div class="settings-row"><div class="settings-row-label">CAT 版本</div><div style="font-size:13px;color:var(--ink3);font-family:'DM Mono',monospace;">v3.0</div></div>
     <div class="settings-row"><div class="settings-row-label">資料儲存位置</div><div style="font-size:12px;color:var(--ink3);font-family:'DM Mono',monospace;">本機+雲端</div></div>
@@ -472,7 +490,6 @@ body{font-family:'Noto Serif TC','Hiragino Sans GB',serif;background:var(--bg);c
   <div class="nav-item active" data-view="calendar" onclick="switchView('calendar')"><div class="nav-icon">📅</div><span>行事曆</span></div>
   <div class="nav-item" data-view="upcoming" onclick="switchView('upcoming')"><div class="nav-icon">🔔</div><span>近期</span></div>
   <div class="nav-item" data-view="todo" onclick="switchView('todo')"><div class="nav-icon">✅</div><span>待辦</span></div>
-  <div class="nav-item" data-view="events" onclick="switchView('events')"><div class="nav-icon">🗂</div><span>事件</span></div>
   <div class="nav-item" data-view="settings" onclick="switchView('settings')"><div class="nav-icon">⚙️</div><span>設定</span></div>
 </div>
 
@@ -937,29 +954,50 @@ const OFFICIAL_HOLIDAYS = {
   2025:[{month:1,day:1,name:'元旦'},{month:1,day:27,name:'春節休假'},{month:1,day:28,name:'除夕'},{month:1,day:29,name:'春節初一'},{month:1,day:30,name:'春節初二'},{month:1,day:31,name:'春節初三'},{month:2,day:28,name:'和平紀念日'},{month:4,day:3,name:'兒童節補假'},{month:4,day:4,name:'兒童節'},{month:4,day:5,name:'清明節'},{month:5,day:1,name:'勞動節'},{month:5,day:30,name:'端午節補假'},{month:5,day:31,name:'端午節'},{month:10,day:6,name:'中秋節'},{month:10,day:10,name:'國慶日'}],
   2026:[{month:1,day:1,name:'元旦'},{month:2,day:16,name:'除夕'},{month:2,day:17,name:'春節初一'},{month:2,day:18,name:'春節初二'},{month:2,day:19,name:'春節初三'},{month:2,day:20,name:'春節初四'},{month:2,day:28,name:'和平紀念日'},{month:4,day:3,name:'兒童節補假'},{month:4,day:4,name:'兒童節'},{month:4,day:5,name:'清明節'},{month:5,day:1,name:'勞動節'},{month:6,day:19,name:'端午節'},{month:6,day:20,name:'端午節補假'},{month:9,day:25,name:'中秋節'},{month:10,day:10,name:'國慶日'}],
   2027:[
-    {month:1, day:1,  name:'元旦',                type:'holiday'},
-    {month:2, day:5,  name:'除夕',                type:'holiday'},
-    {month:2, day:6,  name:'春節（初一）',         type:'holiday'},
-    {month:2, day:7,  name:'春節（初二）',         type:'holiday'},
-    {month:2, day:8,  name:'春節（初三）',         type:'holiday'},
-    {month:2, day:9,  name:'春節彈性放假',          type:'holiday'},
-    {month:2, day:27, name:'⚠ 補班日',            type:'makeup'},
-    {month:2, day:28, name:'和平紀念日',            type:'holiday'},
-    {month:3, day:1,  name:'和平紀念日補假',        type:'holiday'},
-    {month:4, day:2,  name:'兒童節彈性放假',        type:'holiday'},
-    {month:4, day:3,  name:'兒童節',               type:'holiday'},
-    {month:4, day:4,  name:'清明節',               type:'holiday'},
-    {month:4, day:5,  name:'清明節彈性放假',        type:'holiday'},
-    {month:4, day:17, name:'⚠ 補班日',            type:'makeup'},
-    {month:5, day:1,  name:'勞動節',               type:'holiday'},
-    {month:6, day:9,  name:'端午節',               type:'holiday'},
-    {month:9, day:15, name:'中秋節',               type:'holiday'},
-    {month:10,day:10, name:'國慶日',               type:'holiday'},
-    {month:10,day:11, name:'國慶日補假',            type:'holiday'},
+    // ── 一月 ──
+    {month:1, day:1,  name:'元旦',                 type:'holiday'},
+    // ── 二月 春節連假 ──
+    {month:2, day:4,  name:'春節補休',              type:'holiday'},
+    {month:2, day:5,  name:'除夕',                 type:'holiday'},
+    {month:2, day:6,  name:'春節（初一）',           type:'holiday'},
+    {month:2, day:7,  name:'春節（初二）',           type:'holiday'},
+    {month:2, day:8,  name:'春節（初三）',           type:'holiday'},
+    {month:2, day:9,  name:'春節彈性放假（初四）',    type:'holiday'},
+    {month:2, day:10, name:'春節補休（初五）',        type:'holiday'},
+    {month:2, day:27, name:'⚠ 補班日',             type:'makeup'},
+    {month:2, day:28, name:'和平紀念日',             type:'holiday'},
+    // ── 三月 ──
+    {month:3, day:1,  name:'和平紀念日補假',         type:'holiday'},
+    // ── 四月 兒童節/清明連假 ──
+    {month:4, day:2,  name:'兒童節彈性放假',         type:'holiday'},
+    {month:4, day:3,  name:'兒童節',                type:'holiday'},
+    {month:4, day:4,  name:'清明節',                type:'holiday'},
+    {month:4, day:5,  name:'清明節彈性放假',         type:'holiday'},
+    {month:4, day:17, name:'⚠ 補班日',             type:'makeup'},
+    {month:4, day:30, name:'彈性放假（五一橋接）',   type:'holiday'},
+    // ── 五月 ──
+    {month:5, day:1,  name:'勞動節',                type:'holiday'},
+    // ── 六月 端午 ──
+    {month:6, day:9,  name:'端午節',                type:'holiday'},
+    // ── 九月 中秋 ──
+    {month:9, day:15, name:'中秋節',                type:'holiday'},
+    // ── 十月 國慶 ──
+    {month:10,day:10, name:'國慶日',                type:'holiday'},
+    {month:10,day:11, name:'國慶日補假',             type:'holiday'},
   ],
   2028:[{month:1,day:1,name:'元旦'},{month:1,day:25,name:'除夕'},{month:1,day:26,name:'春節初一'},{month:1,day:27,name:'春節初二'},{month:1,day:28,name:'春節初三'},{month:2,day:28,name:'和平紀念日'},{month:4,day:4,name:'兒童節清明節'},{month:5,day:1,name:'勞動節'},{month:5,day:28,name:'端午節'},{month:10,day:3,name:'中秋節'},{month:10,day:10,name:'國慶日'}],
 };
 
+function initSettingsImportSel() {
+  const sel2 = document.getElementById('import-year-sel2');
+  if (!sel2 || sel2.options.length > 0) return;
+  Object.keys(OFFICIAL_HOLIDAYS).map(Number).sort().forEach(y => {
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = y + ' 年';
+    if (y === new Date().getFullYear()) opt.selected = true;
+    sel2.appendChild(opt);
+  });
+}
 function initImportYearSel() {
   const sel = document.getElementById('import-year-sel');
   if (!sel) return;
@@ -969,6 +1007,22 @@ function initImportYearSel() {
     if (y === new Date().getFullYear()) opt.selected = true;
     sel.appendChild(opt);
   });
+}
+function importHolidaysFromSettings() {
+  // Mirror of importHolidays but uses the settings page selectors
+  const sel = document.getElementById('import-year-sel2') || document.getElementById('import-year-sel');
+  const statusEl = document.getElementById('import-status2') || document.getElementById('import-status');
+  const year = parseInt(sel.value);
+  const holidays = OFFICIAL_HOLIDAYS[year];
+  if (!holidays) { statusEl.textContent='⚠ 查無此年資料'; statusEl.className='import-status error'; return; }
+  const {importedHolidays} = loadData();
+  importedHolidays[String(year)] = holidays;
+  saveData('cat_imported_holidays', importedHolidays);
+  statusEl.textContent = `✓ 已匯入 ${year} 年共 ${holidays.filter(h=>h.type!=='makeup').length} 個假日 + ${holidays.filter(h=>h.type==='makeup').length} 個補班日`;
+  statusEl.className = 'import-status';
+  renderCalendar();
+  renderEvents();
+  setTimeout(()=>{statusEl.textContent='';}, 4000);
 }
 function importHolidays() {
   const sel = document.getElementById('import-year-sel');
@@ -1496,11 +1550,19 @@ function editTodo(id){
 // EVENTS VIEW
 // ═══════════════════════════════════════════
 function renderEvents(){
-  const list=document.getElementById('events-list'); list.innerHTML='';
+  // render to both containers (old events tab + new settings location)
+  const listEls = [
+    document.getElementById('events-list'),
+    document.getElementById('events-list-settings'),
+  ].filter(Boolean);
+  listEls.forEach(list => { list.innerHTML = ''; });
+  const list = listEls[0] || listEls[1]; // use first available
+  if (!list) return;
   const{events}=loadData();
   const typeIcons={holiday:'🎌',birthday:'🎂',custom:'⭐'};
   const typeClasses={holiday:'holiday',birthday:'birthday',custom:'todo'};
-  if(events.length===0){list.innerHTML='<div class="empty-state"><div class="empty-icon">🗂</div>尚無自訂事件</div>';return;}
+  const emptyHtml='<div class="empty-state"><div class="empty-icon">🗂</div>尚無自訂事件</div>';
+  if(events.length===0){listEls.forEach(l=>l.innerHTML=emptyHtml);return;}
   events.forEach(e=>{
     const card=document.createElement('div'); card.className='event-card';
     const repeat=!e.year?'🔁 每年':'📌 '+e.year+'年';
@@ -1518,8 +1580,9 @@ function renderEvents(){
         <button class="btn-icon edit" onclick="editEvent('${e.id}')" title="編輯">✏️</button>
         <button class="btn-icon" onclick="deleteEvent('${e.id}')" style="color:var(--holiday)" title="刪除">✕</button>
       </div>`;
-    list.appendChild(card);
+    listEls.forEach(l => l.appendChild(card.cloneNode(true)));
   });
+  // Re-attach event listeners after cloning (use event delegation via onclick attrs already set)
 }
 function deleteEvent(id){
   if(!confirm('確定要刪除此事件？')) return;
@@ -1777,15 +1840,14 @@ function switchView(view){
   if(el) el.classList.add('active');
   document.getElementById('month-nav-bar').style.display=view==='calendar'?'':'none';
   const fab=document.getElementById('fab');
-  (view==='todo'||view==='events')?fab.classList.remove('hidden'):fab.classList.add('hidden');
+  view==='todo'?fab.classList.remove('hidden'):fab.classList.add('hidden');
   if(view==='upcoming') renderUpcoming();
   if(view==='todo') renderTodos();
   if(view==='events') renderEvents();
-  if(view==='settings') initSyncUI();
+  if(view==='settings') { initSyncUI(); renderEvents(); initSettingsImportSel(); }
 }
 function handleFab(){
   if(state.currentView==='todo') openTodoModal();
-  else if(state.currentView==='events') openEventModal();
 }
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o) o.classList.remove('open');}));
 
