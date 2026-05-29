@@ -368,7 +368,6 @@ body{font-family:'Noto Serif TC','Hiragino Sans GB',serif;background:var(--bg);c
     <div class="legend-item"><div class="legend-dot" style="background:#2d4a7a"></div>自訂事件</div>
     <div class="legend-item"><div class="legend-dot" style="background:#e67e22"></div>待辦事項</div>
     <div class="legend-item"><div class="legend-dot" style="background:#27ae60"></div>已完成</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#e0a030;border:1px dashed #a07010;"></div>補班日</div>
   </div>
   <div class="day-panel" id="day-panel">
     <div class="day-panel-header">
@@ -946,7 +945,7 @@ const LUNAR_HOLIDAYS = {
   2024:[{m:2,d:8,n:'除夕'},{m:2,d:9,n:'春節初一'},{m:2,d:10,n:'春節初二'},{m:2,d:11,n:'春節初三'},{m:4,d:4,n:'清明節'},{m:6,d:10,n:'端午節'},{m:9,d:17,n:'中秋節'}],
   2025:[{m:1,d:28,n:'除夕'},{m:1,d:29,n:'春節初一'},{m:1,d:30,n:'春節初二'},{m:1,d:31,n:'春節初三'},{m:4,d:4,n:'清明節'},{m:5,d:31,n:'端午節'},{m:10,d:6,n:'中秋節'}],
   2026:[{m:2,d:16,n:'除夕'},{m:2,d:17,n:'春節初一'},{m:2,d:18,n:'春節初二'},{m:2,d:19,n:'春節初三'},{m:4,d:5,n:'清明節'},{m:6,d:19,n:'端午節'},{m:9,d:25,n:'中秋節'}],
-  2027:[{m:2,d:5,n:'除夕'},{m:2,d:6,n:'春節（初一）'},{m:2,d:7,n:'春節（初二）'},{m:2,d:8,n:'春節（初三）'},{m:4,d:4,n:'清明節'},{m:6,d:9,n:'端午節'},{m:9,d:15,n:'中秋節'}],
+  2027:[{m:2,d:5,n:'除夕'},{m:2,d:6,n:'春節（初一）'},{m:2,d:7,n:'春節（初二）'},{m:2,d:8,n:'春節（初三）'},{m:4,d:4,n:'兒童節／清明節'},{m:6,d:9,n:'端午節'},{m:9,d:15,n:'中秋節'}],
   2028:[{m:1,d:25,n:'除夕'},{m:1,d:26,n:'春節初一'},{m:1,d:27,n:'春節初二'},{m:1,d:28,n:'春節初三'},{m:4,d:4,n:'清明節'},{m:5,d:28,n:'端午節'},{m:10,d:3,n:'中秋節'}],
 };
 const OFFICIAL_HOLIDAYS = {
@@ -954,36 +953,42 @@ const OFFICIAL_HOLIDAYS = {
   2025:[{month:1,day:1,name:'元旦'},{month:1,day:27,name:'春節休假'},{month:1,day:28,name:'除夕'},{month:1,day:29,name:'春節初一'},{month:1,day:30,name:'春節初二'},{month:1,day:31,name:'春節初三'},{month:2,day:28,name:'和平紀念日'},{month:4,day:3,name:'兒童節補假'},{month:4,day:4,name:'兒童節'},{month:4,day:5,name:'清明節'},{month:5,day:1,name:'勞動節'},{month:5,day:30,name:'端午節補假'},{month:5,day:31,name:'端午節'},{month:10,day:6,name:'中秋節'},{month:10,day:10,name:'國慶日'}],
   2026:[{month:1,day:1,name:'元旦'},{month:2,day:16,name:'除夕'},{month:2,day:17,name:'春節初一'},{month:2,day:18,name:'春節初二'},{month:2,day:19,name:'春節初三'},{month:2,day:20,name:'春節初四'},{month:2,day:28,name:'和平紀念日'},{month:4,day:3,name:'兒童節補假'},{month:4,day:4,name:'兒童節'},{month:4,day:5,name:'清明節'},{month:5,day:1,name:'勞動節'},{month:6,day:19,name:'端午節'},{month:6,day:20,name:'端午節補假'},{month:9,day:25,name:'中秋節'},{month:10,day:10,name:'國慶日'}],
   2027:[
-    // ── 一月 ──
-    {month:1, day:1,  name:'元旦',                 type:'holiday'},
-    // ── 二月 春節連假 ──
-    {month:2, day:4,  name:'春節補休',              type:'holiday'},
-    {month:2, day:5,  name:'除夕',                 type:'holiday'},
-    {month:2, day:6,  name:'春節（初一）',           type:'holiday'},
-    {month:2, day:7,  name:'春節（初二）',           type:'holiday'},
-    {month:2, day:8,  name:'春節（初三）',           type:'holiday'},
-    {month:2, day:9,  name:'春節彈性放假（初四）',    type:'holiday'},
-    {month:2, day:10, name:'春節補休（初五）',        type:'holiday'},
-    {month:2, day:27, name:'⚠ 補班日',             type:'makeup'},
-    {month:2, day:28, name:'和平紀念日',             type:'holiday'},
-    // ── 三月 ──
-    {month:3, day:1,  name:'和平紀念日補假',         type:'holiday'},
-    // ── 四月 兒童節/清明連假 ──
-    {month:4, day:2,  name:'兒童節彈性放假',         type:'holiday'},
-    {month:4, day:3,  name:'兒童節',                type:'holiday'},
-    {month:4, day:4,  name:'清明節',                type:'holiday'},
-    {month:4, day:5,  name:'清明節彈性放假',         type:'holiday'},
-    {month:4, day:17, name:'⚠ 補班日',             type:'makeup'},
-    {month:4, day:30, name:'彈性放假（五一橋接）',   type:'holiday'},
-    // ── 五月 ──
-    {month:5, day:1,  name:'勞動節',                type:'holiday'},
-    // ── 六月 端午 ──
-    {month:6, day:9,  name:'端午節',                type:'holiday'},
-    // ── 九月 中秋 ──
-    {month:9, day:15, name:'中秋節',                type:'holiday'},
-    // ── 十月 國慶 ──
-    {month:10,day:10, name:'國慶日',                type:'holiday'},
-    {month:10,day:11, name:'國慶日補假',             type:'holiday'},
+    // ── 元旦 1/1(五)～1/3(日) 3天 ──
+    {month:1, day:1,  name:'元旦',                  type:'holiday'},
+    // ── 春節 2/4(四)～2/10(三) 7天 ──
+    {month:2, day:4,  name:'春節補休',               type:'holiday'},
+    {month:2, day:5,  name:'除夕',                  type:'holiday'},
+    {month:2, day:6,  name:'春節（初一）',            type:'holiday'},
+    {month:2, day:7,  name:'春節（初二）',            type:'holiday'},
+    {month:2, day:8,  name:'春節（初三）',            type:'holiday'},
+    {month:2, day:9,  name:'春節彈性放假',            type:'holiday'},
+    {month:2, day:10, name:'春節補休',               type:'holiday'},
+    // ── 和平紀念日 2/27(六)～3/1(一) 3天 ──
+    {month:2, day:28, name:'和平紀念日',              type:'holiday'},
+    {month:3, day:1,  name:'和平紀念日補假',          type:'holiday'},
+    // ── 兒童節、清明節 4/3(六)～4/6(二) 4天 ──
+    {month:4, day:4,  name:'兒童節／清明節',          type:'holiday'},
+    {month:4, day:5,  name:'兒童節清明節補假',        type:'holiday'},
+    {month:4, day:6,  name:'清明節彈性放假',          type:'holiday'},
+    // ── 勞動節 4/30(五)～5/2(日) 3天 ──
+    {month:4, day:30, name:'勞動節彈性放假',          type:'holiday'},
+    {month:5, day:1,  name:'勞動節',                 type:'holiday'},
+    // ── 端午節 6/9(三) ──
+    {month:6, day:9,  name:'端午節',                 type:'holiday'},
+    // ── 中秋節 9/15(三) ──
+    {month:9, day:15, name:'中秋節',                 type:'holiday'},
+    // ── 教師節 9/28(二) ──
+    {month:9, day:28, name:'教師節',                 type:'holiday'},
+    // ── 國慶日 10/9(六)～10/11(一) 3天 ──
+    {month:10,day:10, name:'國慶日',                 type:'holiday'},
+    {month:10,day:11, name:'國慶日補假',              type:'holiday'},
+    // ── 台灣光復節 10/23(六)～10/25(一) 3天 ──
+    {month:10,day:25, name:'台灣光復節',              type:'holiday'},
+    // ── 行憲紀念日 12/24(五)～12/26(日) 3天 ──
+    {month:12,day:24, name:'行憲紀念日彈性放假',      type:'holiday'},
+    {month:12,day:25, name:'行憲紀念日',              type:'holiday'},
+    // ── 2028元旦橋接 12/31(五)～1/2(日) 3天 ──
+    {month:12,day:31, name:'元旦彈性放假',            type:'holiday'},
   ],
   2028:[{month:1,day:1,name:'元旦'},{month:1,day:25,name:'除夕'},{month:1,day:26,name:'春節初一'},{month:1,day:27,name:'春節初二'},{month:1,day:28,name:'春節初三'},{month:2,day:28,name:'和平紀念日'},{month:4,day:4,name:'兒童節清明節'},{month:5,day:1,name:'勞動節'},{month:5,day:28,name:'端午節'},{month:10,day:3,name:'中秋節'},{month:10,day:10,name:'國慶日'}],
 };
