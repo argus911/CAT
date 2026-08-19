@@ -842,7 +842,8 @@ const LUNAR_FESTIVALS = {
 
 // 取得某日的農曆顯示文字
 function getLunarDisplay(y, m, d) {
-  if (!localStorage.getItem('cat_show_lunar') || localStorage.getItem('cat_show_lunar') === 'false') {
+  // Default = show lunar (true). Only hide when explicitly set to 'false'
+  if (localStorage.getItem('cat_show_lunar') === 'false') {
     return null;
   }
   
@@ -1056,12 +1057,10 @@ function saveJbConfig() {
 }
 
 function toggleLunar() {
+  // Default = show (true). Toggle: null/'true' → 'false', 'false' → 'true'
   const current = localStorage.getItem('cat_show_lunar');
-  const newVal = (current === 'false') ? 'true' : 'false';
-  // Default is true if never set; toggle off makes it false
-  const effectiveCurrent = (current === null || current === 'true') ? 'true' : 'false';
-  const next = effectiveCurrent === 'true' ? 'false' : 'true';
-  localStorage.setItem('cat_show_lunar', next);
+  const isOn = current !== 'false'; // null or 'true' = ON
+  localStorage.setItem('cat_show_lunar', isOn ? 'false' : 'true');
   initLunarToggle();
   renderCalendar();
 }
