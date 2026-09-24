@@ -18,3 +18,4 @@
 ## 使用
 https://argus911.github.io/CAT/
 Safari > 分享 > 加入主畫面
+test
